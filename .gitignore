@@ -4,6 +4,10 @@ venv/
 # Ignore data and results
 data/raw/
 results/
+*.csv
+*.json
+*.png
+*.log
 
 # Ignore temporary Python files
 __pycache__/
