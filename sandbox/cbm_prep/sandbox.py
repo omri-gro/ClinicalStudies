@@ -9,7 +9,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 
 # creating derived_df that is a pivoted dataframe with row for each measurement (parameter, sample, site, method combination)
-class MetadataBundle:
+class MetadataBundle:  # to do: add attribute for thresholds & grades?
     #  Holds all metadata and configuration for the pipeline.
     def __init__(self, metadata_path):
         context = self.load_yaml(metadata_path)
@@ -419,6 +419,27 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None):
 
     return df
 
+def to_grades(df_long: pd.DataFrame, thresh: dict):
+    df = df_long.copy()
+
+
+    pass
+
+
+def _cut_with_config(s: pd.Series, edges, labels, right_closed=True,
+                     clamp_out_of_range=True, as_categorical=True, grade_dtype="Int8"):
+    # used for converting to grades according to thresholds
+    x = s.copy()
+    if clamp_out_of_range:
+        x = x.clip(lower=min(edges), upper=max(edges))
+    # pandas.cut is right-closed if right=True
+    grades = pd.cut(x, bins=edges, labels=labels, right=right_closed, include_lowest=True)
+    if as_categorical:
+        grades = grades.astype(pd.CategoricalDtype(categories=labels, ordered=True))
+    else:
+        grades = grades.astype(grade_dtype)
+    return grades
+
 
 def curate_df(df, metadata, src=None, wbcs_as_counts=False):
     # to do: check the type of results' source (scopio, OMR from specific site, CRF, etc.)
@@ -585,6 +606,7 @@ def plot_ver_reg(x, y, cls_var=None, reg_ser=None, eq_line=True, fig=None, ax=No
 
 
 def set_equal_limits_and_scale(fig=None, ax=None):
+    # to do - remove, as already exists in plotting.py
     """
     Sets the x and y axes to have:
     - The same scale (1 unit in x = 1 unit in y)
