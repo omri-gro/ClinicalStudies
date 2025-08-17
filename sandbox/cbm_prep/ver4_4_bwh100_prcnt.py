@@ -114,6 +114,7 @@ if __name__ == "__main__":
             print(dem_dict)
             if cell in ['Segmented Neutrophil', 'Band Neutrophil', 'Metamyelocyte', 'Myelocyte', 'Promyelocyte', 'Blast', 'Lymphocyte (not regular)', 'LGL', 'Atypical Lymphocyte', 'Aberrant Lymphocyte', 'Monocyte', 'Basophil', 'Eosinophil', 'Total Neutrophil', 'Variant Lymphocyte', 'Total Lymphocyte', 'Immature', 'Immature&Blast', 'NRBC', 'Smudge Cell']:
                 fig, ax = sb.plot_ver_reg(x, y, reg_ser=dem_dict)
+                fig.show()
                 sb.set_equal_limits_and_scale(ax=ax)
                 ax.set_title(cell)
                 ax.set_xlabel('Manual')
@@ -135,6 +136,7 @@ if __name__ == "__main__":
             print(dem_dict)
             if cell in ['Burr Cells', 'Elliptocytes', 'Ovalocytes', 'Pappenheimer', 'Parasites', 'Schistocytes', 'Sickle cells', 'Spherocytes', 'Stomatocytes', 'Target cells', 'Tear drop cells', 'EllipOval', 'AcanoEchino']:
                 fig, ax = sb.plot_ver_reg(x, y, reg_ser=dem_dict)
+                fig.show()
                 sb.set_equal_limits_and_scale(ax=ax)
                 ax.set_title(cell)
                 ax.set_xlabel('CellaVision')

@@ -6,12 +6,16 @@ from typing import List, Tuple, Optional, Dict, Any
 from itertools import product
 import os
 import numpy as np
+import math
+import matplotlib.pyplot as plt
 
 # placeholder nutil integrating regression functions
 import sys
 sys.path.append(r'C:\Users\omrig\PycharmProjects\pythonProject\CBM_verification')
 import reg_types as reg
 from dataclasses import dataclass, asdict
+from matplotlib.backends.backend_pdf import PdfPages
+import plotting
 
 
 @dataclass
@@ -115,16 +119,36 @@ class MethodComparator:
         y: array of test method measurements
         ids: list of (Site, SampleID) tuples corresponding to each x/y pair
         """
+        # see _prepare_arrays_strict if ever need to improve
+        if not (isinstance(ref_method, str) and isinstance(test_method, str) and isinstance(variable, str) and isinstance(measurement_col, str)):
+            raise TypeError('ref_method, test_method, variable and measurement_col should all be strings')
+
         # note this function actually does same thing as _prepare_arrays method from MethodComparator
         subset = self.df[self.df["Variable"] == variable].copy()
         if site_filter is not None:
             subset = subset[subset["Site"].isin(site_filter)]
+        subset = subset[subset["Method"].isin([ref_method, test_method])]
+
+        # Ensure uniqueness per (SampleID, Site, Method) first (raise if not) - consider moving to sandbox or own method
+        dup_key = ["SampleID", "Site", "Method"]
+        dup_mask = subset.duplicated(dup_key, keep=False)
+        if dup_mask.any():
+            offenders = (subset.loc[dup_mask, dup_key]
+                         .value_counts()
+                         .reset_index(name="count")
+                         .head(10))
+            raise ValueError(
+                "Duplicate rows per (SampleID, Site, Method) before pivot.\n"
+                f"Examples (up to 10):\n{offenders.to_string(index=False)}"
+            )
 
         # Pivot: SampleID+Site as index, Methods as columns
         pivoted = subset.pivot_table(
             index=["SampleID", "Site"],
             columns="Method",
-            values=measurement_col
+            values=measurement_col,
+            aggfunc="first",
+            dropna=False
         )
 
         # Drop missing pairs (cases where at least one of the methods has NaN)
@@ -142,10 +166,11 @@ class MethodComparator:
             test_method: str,
             variable: str,
             site_filter: Optional[List[str]] = None,
-            model: Optional[str] = "deming"):
+            model: Optional[str] = "deming",
+            measurement_col="Value"):
         """Run regression for one variable/site/method pair."""
 
-        x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter)
+        x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter, measurement_col=measurement_col)
 
         # placeholder regression_func → replace with your real implementation
         stats = reg.regression_comp(x, y, reg_method=model)  # placeholder - replace later with different regression functions
@@ -167,16 +192,26 @@ class MethodComparator:
         }
         return self.results[key]
 
-    def batch_fit(self, ref_methods, test_methods, variables, site_filters=None, model="deming"):
-        """Run regression across many combinations in one call."""
+    def batch_fit(self, ref_methods, test_methods, variables, site_filters=None, model="deming", measurement_col="Value"):
+        """Run regression across many combinations of methods, variables and sites in one call."""
+        # currently ref_methods, test_methods, variables should be lists, consider option to allow strings as well
+        def ensure_list(x):  # might want to turn into general utility are part of more general function with 'product'
+            """If argument is a string, function return list with x as its only item"""
+            return [x] if isinstance(x, str) else x
+
         if site_filters is None:
             site_filters = [None]
+
+        ref_methods = ensure_list(ref_methods)
+        test_methods = ensure_list(test_methods)
+        variables = ensure_list(variables)
+        site_filters = ensure_list(site_filters)
 
         for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
             if ref == test:
                 continue
             try:
-                self.fit(ref, test, var, site_filter=sites, model=model)
+                self.fit(ref, test, var, site_filter=sites, model=model, measurement_col=measurement_col)
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 
@@ -201,7 +236,7 @@ class MethodComparator:
             self.results[key]["biases"] = biases
 
 
-    def regressions_to_dataframe(self) -> pd.DataFrame:  # really referring only to regression results
+    def regressions_to_dataframe(self) -> pd.DataFrame:
         """
         Convert regressions in MethodComparator.results to a DataFrame.
         Expects results argument to be a dict with {key: {..., "reg": RegressionResult}}.
@@ -211,12 +246,26 @@ class MethodComparator:
             ref_method, test_method, variable, site = key
             stats: RegressionResult = val["reg"]
 
+            # create printable version of regression results (to do: add this as attribute for RegressionResult
+            if math.isnan(stats.slope) or stats.slope == float('inf') or stats.slope == float('-inf'):
+                reg_strngs = ["NA", "NA", "NA"]
+            else:
+                reg_strngs = []
+                for param in ('slope', 'intercept'):
+                    pnt_est = getattr(stats, param)
+                    bottom = getattr(stats, f'{param}_ci')[0]
+                    top = getattr(stats, f'{param}_ci')[1]
+                    reg_strngs.append(f"{pnt_est:.2f}\n({bottom:.2f}-{top:.2f})")
+                reg_strngs.append(f"{stats.r2:.2f}")
+
             row = {
                 "ref_method": ref_method,
                 "test_method": test_method,
-                "variable": variable,
-                "site": site,
-                **stats.as_dict()
+                "Variable": variable,
+                "Site": site,
+                "Slope": reg_strngs[0],
+                "Intercept": reg_strngs[1],
+                "R^2": reg_strngs[2]
             }
             rows.append(row)
 
@@ -241,26 +290,25 @@ class MethodComparator:
                     pnt_est = bias[f'{bias_type}_bias']
                     bottom = bias[f'{bias_type}_bias_ci'][0]
                     top = bias[f'{bias_type}_bias_ci'][1]
-                    if pnt_est == np.nan:
+                    if math.isnan(pnt_est):
                         bias_str = "NA"
-                    elif bottom == np.nan or top == np.nan:
+                    elif math.isnan(bottom) or math.isnan(top):
                         bias_str = f"{pnt_est:.2f}"
                     else:
                         bias_str = f"{pnt_est:.2f}\n({bottom:.2f}-{top:.2f})"
                     bias_strngs.append(bias_str)
-            row = {
-                    "Reference Method": ref,
-                    "Test Method": test,
-                    "Variable": var,
-                    "Sites": sites,
-                    "Critical Point": point,
-                    "Bias": bias_strngs[0],
-                    "%Bias": bias_strngs[1]
-                    }
-            rows.append(row)
+                row = {
+                        "Reference Method": ref,
+                        "Test Method": test,
+                        "Variable": var,
+                        "Sites": sites,
+                        "Critical Point": point,
+                        "Bias": bias_strngs[0],
+                        "%Bias": bias_strngs[1]
+                        }
+                rows.append(row)
 
         return pd.DataFrame(rows)
-
 
     def save_results(self, filepath: str, txt_form: bool = True, result_type: str = "reg") -> None:
         """
@@ -279,6 +327,51 @@ class MethodComparator:
             df.to_excel(filepath, index=False)
         else:
             raise ValueError("Format must be 'csv' or 'excel'.")
+
+    def plot_all_regressions(self, pdf_path: str, *, style: Dict = None, scatter_kwargs: Dict = None, overlay_kwargs: Dict = None):
+        # to do: add option where pdf_path=None, in which case plots are shown directly
+        """
+        Create one page per result: scatter + regression overlay; save to a single PDF.
+
+        Parameters
+        ----------
+        pdf_path : str, optional
+            Output path for the PDF (e.g., 'all_regressions.pdf'). If empty that
+        style : dict, optional
+            Base style applied to all pages. Can include template strings like:
+              title="Regression for {name}", xlabel="{x_label}", ylabel="{y_label}"
+            Common useful keys:
+              - legend (bool), legend_loc, legend_title
+              - grid (bool), tight_layout (bool)
+              - equal_limits (bool), pad_limits (bool), xpad, ypad, pad_mode
+              - palette, line_color, scatter_color, ci (bool), ci_mode ("lines"/"shade")
+        scatter_kwargs : dict, optional
+            Extra kwargs to pass to plot_scatter_basic (rarely needed; style usually suffices).
+        overlay_kwargs : dict, optional
+            Extra kwargs to pass to overlay_regression_line (e.g., n_points=400).
+        """
+        base_style = {'gird': True,
+                      'equal_limits': True,
+                      # regression overlay defaults:
+                      'ci': True,
+                      'ci_mode': 'shade'}
+        user_style = style or {}
+        scatter_kwargs = scatter_kwargs or {}
+        overlay_kwargs = overlay_kwargs or {}
+
+        with PdfPages(pdf_path) as pdf:
+            for data, rslt in self.results.items():
+                xname, yname, varname, _ = data
+                if rslt['reg'].r is not None:
+                    scpc_style = {'title': varname, 'xlabel': xname, 'ylabel': yname}
+                    final_style = plotting.merge_styles(base_style, user_style, scpc_style)
+
+                    fig, ax = plt.subplots(figsize=final_style.get("figsize", (6, 5)))
+                    fig, ax = plotting.plot_scatter_basic(rslt, style=final_style, fig=fig, ax=ax, **scatter_kwargs)
+                    plotting.overlay_regression_line(fig=fig, ax=ax, result=rslt['reg'], style=final_style, **overlay_kwargs)
+                    pdf.savefig(fig)
+                    plt.close()
+
 
 
 

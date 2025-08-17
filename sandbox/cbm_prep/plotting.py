@@ -72,6 +72,39 @@ def set_equal_limits_and_scale(fig=None, ax=None):
         a.set_ylim(data_min, data_max)
         a.set_aspect('equal')
 
+
+def _deep_merge(a: dict, b: dict) -> dict:
+    """Shallow+nested dict merge: values in b override a.
+       Combines two dictionaries, but if a key’s value is itself a dictionary, it merges those nested"""
+    out = dict(a)
+    for k, v in b.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def merge_styles(*layers: dict) -> dict:
+    """Allows merging multiple layers of styles in order of increasing priority."""
+    out = {}
+    for layer in layers:
+        out = _deep_merge(out, layer or {})
+    return out
+
+
+def _fmt_template_values(style_or_str, context: dict):
+    """If style values are str with {placeholders}, format them with context."""
+    if isinstance(style_or_str, str):
+        return style_or_str.format(**context)
+    if isinstance(style_or_str, dict):
+        out = {}
+        for k, v in style_or_str.items():
+            out[k] = _fmt_template_values(v, context)
+        return out
+    return style_or_str
+
+
 def apply_axes_style(ax, style: dict | None = None):
     """Apply common axis styling from a style dict."""
     style = style or {}
@@ -105,6 +138,7 @@ def apply_axes_style(ax, style: dict | None = None):
         if style.get("legend_fontsize") is not None:
             legend_kwargs["fontsize"] = style["legend_fontsize"]
 
+
 def apply_figure_style(fig, style: dict | None = None):
     style = style or {}
     if style.get("tight_layout", True):
@@ -116,9 +150,10 @@ def apply_figure_style(fig, style: dict | None = None):
 """Registered plots"""
 """
 All of these receive:
- * a data argument which is either a dictionary-like (with 'x' and 'y' as keys) OR
-   a pandas DataFrame/Series with 'x' and 'y' columns OR
-   a tuple of (x, y), with x and y being array-like or lists of numbers
+ * a data argument which is either:
+    a dictionary-like (with 'x' and 'y' as keys) OR
+    a pandas DataFrame/Series with 'x' and 'y' columns OR
+    a tuple of (x, y), with x and y being array-like or lists of numbers
  * possible style dictionary like the ones in 'plot_styles.py
  * possible fig or ax that were created previously, on which the plot will be drawn (otherwise will create new ones)
 Functions return fig and ax

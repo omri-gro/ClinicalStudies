@@ -7,22 +7,26 @@ import matplotlib.pyplot as plt
 from typing import List
 from matplotlib.backends.backend_pdf import PdfPages
 
+"""
+creating derived_df that is a pivoted dataframe with row for each measurement (parameter, sample, site, method combination)
+"""
 
-# creating derived_df that is a pivoted dataframe with row for each measurement (parameter, sample, site, method combination)
+
 class MetadataBundle:  # to do: add attribute for thresholds & grades?
     #  Holds all metadata and configuration for the pipeline.
     def __init__(self, metadata_path):
-        context = self.load_yaml(metadata_path)
-        self.variables = context["variables"]
-        self.alias_map = self.build_alias_map(self.variables)
+        # consider a simpler init without metadata_path, and move current content into from_yaml method
+        context = load_yaml(metadata_path)
+        self.variables = context.get("variables", {})
+        self.alias_map = self.build_alias_map(self.variables)  # not the standard way of creating variables, could have just defined self.alias_map within the function
         self.variable_groups = self.build_variable_groups(self.variables)
-        self.crit_points = self.build_crit_points(self.variables)
+        self.crit_points = self.build_crit_points(self.variables)  # to do: add functionality where critical points are defined by grading thresholds if one is provided and the other isn't.
+        self.grading_specs = self.building_grading_specs(self.variables)
 
-        self.src_fixes = context.get("Source fixes", {})
+        self.src_fixes = self.build_src_fixes(context)
 
-    def load_yaml(self, path):
-        with open(path, "r") as f:
-            return yaml.safe_load(f)
+        self.pregraded_index = self.build_pregraded_index()
+
 
     def build_alias_map(self, variables):
         alias_map = {}
@@ -31,10 +35,6 @@ class MetadataBundle:  # to do: add attribute for thresholds & grades?
             for alias in props.get("aliases", []):
                 alias_map[alias] = canonical
         return alias_map
-
-    def get_variable_groups(self, group_name):
-        return [var for var, props in self.variables.items()
-                if group_name in props.get("groups", [])]
 
     def build_variable_groups(self, variables):
         """
@@ -57,7 +57,68 @@ class MetadataBundle:  # to do: add attribute for thresholds & grades?
                 points_map[var] = crit_points
         return points_map
 
+    def building_grading_specs(self, variables):
+        """
+        Create a dictionary of variable_name -> dict(thresholds, grades, right_closed, clamp_out_of_range),
+        where only variables that have thresholds+grades appear.
+        """
+        grading_specs = {
+            name: spec for name, spec in variables.items()
+            if isinstance(spec, dict)
+            and spec.get("thresholds") is not None
+            and spec.get("grades") is not None
+        }
+        return grading_specs
 
+    def build_src_fixes(self, context):
+        """
+        Create a dictionary of (site, method) -> {"rule name": ...}
+        """
+        fix_dict = context.get("Source fixes", {})
+        src_fixes = {}
+        for k, v in fix_dict.items():
+            site, method = self.parse_site_method_key(k)
+            src_fixes[(site, method)] = v or {}
+        return src_fixes
+
+    def build_pregraded_index(self):  # to do: consider applying dimensionless approach for indices as well
+        """
+        Create a Series where True if index (Site, Method, Variable) is provided as grade already
+        Within the src_fixes attribute, this can be specified for variables or groups of variables
+        """
+        rows = []
+        for (site, method), rule in self.src_fixes.items():
+            for var in (rule.get("raw_given_as_grade") or []):
+                if var in self.variables.keys():
+                    rows.append((site, method, var))
+                else:
+                    for var_name in self.variable_groups.get(var, []):
+                        rows.append((site, method, var_name))
+        if rows:
+            idx = pd.MultiIndex.from_tuples(rows, names=["Site", "Method", "Variable"])
+            return pd.Series(True, index=idx, dtype=bool)
+        else:
+            return None
+
+    @staticmethod
+    def parse_site_method_key(key: str):
+        if isinstance(key, tuple):
+            site, method = key
+        else:
+            k = key.strip()
+            if k.startswith("(") and k.endswith(")"):
+                k = k[1:-1]
+            site, method = [p.strip() for p in k.split(",", 1)]
+        return site, method
+
+
+"""General tools"""
+def load_yaml(path):
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
+"""Data import and preparation tools"""
 def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
     if file_dir == None:
         # dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
@@ -252,8 +313,9 @@ def apply_src_fixes(df, metadata, src):
     Args:
         df (DataFrame): DataFrame to operate on.
         metadata (MetadataBundle): Object containing source fixes.
-        src (str): Name of site or method (which appears in the metadata's source fixes).
+        src (str): Name of site and/or method (which appears in the metadata's source fixes).
 
+    - Note "raw_given_as_grade" is handled during add_grade_column, and is ignored here.
     Returns:
         DataFrame: Modified DataFrame.
     """
@@ -271,6 +333,8 @@ def apply_src_fixes(df, metadata, src):
             df = handle_fill_nans_by_rule(df, metadata, rules)
         elif rules_group == "rename_rules":
             # df = handle_rename_rules(df, rules)
+            pass
+        elif rules_group == "raw_given_as_grade":
             pass
         else:
             print(f"\033[91Unknown fix rules group: {rules_group}\033[0m")
@@ -419,35 +483,118 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None):
 
     return df
 
-def to_grades(df_long: pd.DataFrame, thresh: dict):
+
+# to do: add step/function before/after this function where other shapes of same grade are converted to uniform look (e.g., "x" changed to "Negative")
+# to do: integrate this somehow with checking positive cases (will behave like grade with single threshold, or checking where not nan/0 when pregraded)
+def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle"):
+    """
+    Expects df_long columns: SampleID, Variable, Value, Method, Site (case-sensitive).
+    Adds column for grades based on number in value column.
+    Uses MetaDataBundle, which is expected to include grading_specs dict with thresholds and grades for variable names.
+    """
+    # currently data is converted to grades but not to pd.CategoricalDtype - if want to change add the _coerce_grade_categorical function
+
     df = df_long.copy()
+    req = {"Variable", "Value", "Method", "Site"}
+    if not req.issubset(df.columns):
+        raise ValueError(f"Expected columns: {req}")
+
+    df["Grade"] = pd.NA
+    df["Grade_from"] = pd.NA
+
+    # Copy-as-is for non-numeric rows
+    value_num = pd.to_numeric(df["Value"], errors="coerce")
+    non_numeric = value_num.isna() & df["Value"].notna()  # strings like "N/A", "Not evaluable", etc.
+    if non_numeric.any():
+        df.loc[non_numeric, "Grade"] = df.loc[non_numeric, "Value"]
+        df.loc[non_numeric, "Grade_from"] = "provided"
+        # in these cases, the "values" were really just grades, so no need to include them in continuous values analysis
+        df.loc[non_numeric, "Value"] = pd.NA
 
 
-    pass
-
-
-def _cut_with_config(s: pd.Series, edges, labels, right_closed=True,
-                     clamp_out_of_range=True, as_categorical=True, grade_dtype="Int8"):
-    # used for converting to grades according to thresholds
-    x = s.copy()
-    if clamp_out_of_range:
-        x = x.clip(lower=min(edges), upper=max(edges))
-    # pandas.cut is right-closed if right=True
-    grades = pd.cut(x, bins=edges, labels=labels, right=right_closed, include_lowest=True)
-    if as_categorical:
-        grades = grades.astype(pd.CategoricalDtype(categories=labels, ordered=True))
+    # mask indices where MetaDataBundle claims raw was given as grade
+    if meta.pregraded_index is not None:
+        keys = pd.MultiIndex.from_frame(df[["Site", "Method", "Variable"]])
+        pregraded = meta.pregraded_index.reindex(keys, fill_value=False).to_numpy()
     else:
-        grades = grades.astype(grade_dtype)
-    return grades
+        pregraded = np.zeros(len(df), dtype=bool)
+
+    # copy when source says raw values are already grades  (notice that currently nan of some types are also copied if belonging to these variables)
+    mask_pregraded_numeric = pregraded & ~non_numeric
+    if mask_pregraded_numeric.any():
+        df.loc[mask_pregraded_numeric, "Grade"] = df.loc[mask_pregraded_numeric, "Value"]
+        df.loc[mask_pregraded_numeric, "Grade_from"] = "provided"
+        # in these cases, the "values" were really just grades, so no need to include them in continuous values analysis
+        df.loc[mask_pregraded_numeric, "Value"] = pd.NA
+
+
+    # derive grade from gradable numeric values (which were not already provided as grades)
+    gradable_vars = set(meta.grading_specs.keys())
+    need_convert = (~pregraded) & ~non_numeric & df["Variable"].isin(gradable_vars)
+    if need_convert.any():
+        for var in sorted(gradable_vars):
+            mv = need_convert & df["Variable"].eq(var)
+            if not mv.any():
+                continue
+            spec = meta.grading_specs[var]
+            try:
+                df.loc[mv, "Grade"] = cut_series_to_categorical(
+                    df.loc[mv, "Value"].astype(float),
+                    thresholds=spec["thresholds"],
+                    grades=spec["grades"],
+                    right_closed=spec.get("right_closed", True),
+                    clamp_out_of_range=spec.get("clamp_out_of_range", True))
+                df.loc[mv, "Grade_from"] = "derived"
+            except ValueError as e:
+                print(f"\033[93mGrading specs error for {var}: {e}. Values not converted to grades.\033[0m")
+                df.loc[mv, "Grade_from"] = "conversion error"
+    return df
+
+
+def cut_series_to_categorical(x: pd.Series,
+                              thresholds,
+                              grades,
+                              *,
+                              right_closed: bool = True,
+                              clamp_out_of_range: bool = False) -> pd.Categorical:
+    """
+    Bin continuous values into grades.
+
+    Args:
+        x: numeric Series.
+        thresholds: list-like of bin edges (e.g., [0,5,10,20,101]).
+        grades: list-like of labels (e.g., [0,1,2,3] or ["none","mild","mod","sev"]).
+        right_closed: if True, bins are right-closed ( (a,b] ).
+        clamp_out_of_range: clip x to [min(thresholds), max(thresholds)] before cutting. Only used when len(thresholds) == len(grades) + 1.
+
+    - If len(thresholds) == len(grades) - 1: treated as *interior cut points*; we pad with -inf/+inf
+    - If len(thresholds) == len(grades) + 1: treated as full bin edges; must already bracket all bins.
+
+    Returns:
+        pandas Series with categories exactly as in `grades`.
+    """
+    y = x.astype(float)
+    if len(thresholds) == len(grades) - 1:
+        edges = np.concatenate(([-np.inf], thresholds, [np.inf]))
+    elif len(thresholds) == len(grades) + 1:
+        edges = thresholds
+        if clamp_out_of_range:
+            y = y.clip(lower=edges[0], upper=edges[-1])
+    else:
+        raise ValueError(f"\033[93mGrades must have one more or one less member than thresholds\033[0m")
+
+    # Validate monotonicity (required by pandas.cut)
+    if not np.all(np.diff(edges) > 0):
+        raise ValueError("thresholds/edges must be strictly increasing.")
+
+    out = pd.cut(y, bins=edges, labels=grades, right=right_closed, include_lowest=True)
+    return out
 
 
 def curate_df(df, metadata, src=None, wbcs_as_counts=False):
     # to do: check the type of results' source (scopio, OMR from specific site, CRF, etc.)
     if not src:
-        if df['Method'][0] in ['CBM', 'Scopio', 'Test', 'BMA', 'ClV']:
-            src = df['Method'][0]
-        else:
-            src = df['Site'][0]
+        src = (df["Site"][0], df["Method"][0])
 
     # standardize column names
     df = stnd_names(df, metadata.alias_map)
@@ -648,6 +795,7 @@ def short_pipe(df, metadata):
     check_diff_sum(df, metadata, tolerance=5)
 
     df = pivot_long(df)
+    df = add_grade_column(df, metadata)
     df = df.dropna(subset=["Value"])
 
     # calculate derived variables (e.g., Variant Lymphocytes)
