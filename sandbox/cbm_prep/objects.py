@@ -87,13 +87,13 @@ class RegressionResult:
 
 
 class MethodComparator:
-    def __init__(self, df: pd.DataFrame, measurement_col='Measurement'):
+    def __init__(self, df: pd.DataFrame, measurement_col='Value'):
         """
         Initialize comparator with long-format dataframe.
         Expected columns: SampleID, Site, Method, Variable, Value
         """
         self.df = df.copy()
-        self.measurement_col = measurement_col
+        self.measurement_col = measurement_col  # currently not used
         self.results = {}  # stores regression results by (ref, test, variable, site)
 
     def _prepare_arrays(
@@ -263,6 +263,7 @@ class MethodComparator:
                 "test_method": test_method,
                 "Variable": variable,
                 "Site": site,
+                "N": stats.n,
                 "Slope": reg_strngs[0],
                 "Intercept": reg_strngs[1],
                 "R^2": reg_strngs[2]

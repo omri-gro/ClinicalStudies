@@ -1,10 +1,15 @@
 import pandas as pd
 
 if __name__ == "__main__":
-    mthd = 'TEST'  # for test, remember to change name of 'Total' raw to 'Total nucleated cells'
+    mthd = 'REF'  # for test, remember to change name of 'Total' raw to 'Total nucleated cells'
+    site = 'BWH'
 
-    investigators = {'Wei Xie': 'User1', 'Todd Williams': 'User2'}
-    typed_file = f'OHSU_CRF_{mthd}.csv'
+    investigators = {'Wei Xie': 'User1', 'Todd Williams': 'User2',
+                     'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User3', 'Sam Sadigh': 'User4'}
+
+    investigators = {'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User1', 'Sam Sadigh': 'User2'}
+
+    typed_file = f'{site}_CRF_{mthd}.csv'
     df = pd.read_csv(typed_file)
 
     # Identify empty specimen columns (entire column is empty below the header)
@@ -38,14 +43,18 @@ if __name__ == "__main__":
     # Pivot table to align values from both investigators
     df_pivoted = df_melted.pivot(index=['Sample', 'Parameter'], columns='User', values='Value').reset_index()
 
+    if len(df_pivoted) == 0:
+        raise ValueError("Nothing to compare (no samples were reviewed by multiple reviewers yet)")
+
     # Rename columns for clarity
-    df_pivoted.rename(columns={'User1': 'Value_1', 'User2': 'Value_2'}, inplace=True)
+    df_pivoted.rename(columns={'User1': 'Value_1', 'User2': 'Value_2', 'User3': 'Value_3', 'User4': 'Value_4'}, inplace=True)
 
     # Convert numeric values where applicable
+    # for col in ['Value_1', 'Value_2', 'Value_3', 'Value_4']:  # might need to change script to fit number of reviewers per site
     for col in ['Value_1', 'Value_2']:
         df_pivoted[col] = pd.to_numeric(df_pivoted[col], errors='ignore')
 
-    df_pivoted.to_excel(f'df_pivoted_{mthd}.xlsx', index=False)
+    df_pivoted.to_excel(f'df_pivoted_{site}_{mthd}.xlsx', index=False)
     print(df_pivoted)
 
 
