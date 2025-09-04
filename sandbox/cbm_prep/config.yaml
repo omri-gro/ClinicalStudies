@@ -7,11 +7,13 @@ variables:
    - Neutrophils %, film
    - Segmented Neutrophils
    - segmented neutrophil
+   - segmented_neutrophil_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [40, 70]
+  normal_range: [40, 70]
  Band Neutrophil:
   aliases:
    - Band neutrophil
@@ -19,57 +21,67 @@ variables:
    - Band %
    - Band Neutrophils
    - band neutrophil
+   - band_neutrophil_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 3]
+  normal_range: [0, 3]
  Metamyelocyte:
   aliases:
    - Metamyelocytes %
    - Metamyelסcyte %
    - Metamyelocytes
    - metamyelocyte
+   - metamyelocyte_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 2]
+  normal_range: [0, 2]
  Myelocyte:
   aliases:
    - Myelocyte %
    - Myelocytes %
    - Myelocytes
    - myelocyte
+   - myelocyte_percentage
    - Myeloid %
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 2]
+  normal_range: [0, 2]
  Promyelocyte:
   aliases:
    - Promyelocytes %
    - Promyelocyte %
    - Promyelocytes
    - promyelocyte
+   - promyelocyte_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 2]
+  normal_range: [0, 2]
  Blast:
   aliases:
    - Blasts %
    - Blast %
    - Blasts
    - blast
+   - blast_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
    - OMR compare
   crit_points: [0, 2, 5]
+  normal_range: [0, 2]
  Plasma Cell:
   aliases:
    - Plasma Cells %
@@ -77,11 +89,13 @@ variables:
    - Plasma cells %
    - Plasma Cells
    - plasma cell
+   - plasma_cell_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
  Lymphocyte:
   aliases:
    - Lymphocytes %
@@ -89,11 +103,13 @@ variables:
    - Lymphocytes %, film
    - Lymphocytes
    - lymphocyte
+   - lymphocyte_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [20, 50]
+  normal_range: [20, 50]
  LGL:
   aliases:
    - LARGE GRANULAR LYMPHOCYTES PRESENT
@@ -101,11 +117,13 @@ variables:
    - Large granular lymphocytes %
    - Large Granular Lymphocytes (LGLs)
    - large granular lymphocyte
+   - large_granular_lymphocyte_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 10, 15]
+  normal_range: [0, 10]
  Atypical Lymphocyte:
   aliases:
    - Atypical Lymphocytes %
@@ -113,38 +131,46 @@ variables:
    - Atypical lymphocytes %
    - Atypical Lymphocytes
    - atypical lymphocyte
+   - atypical_lymphocyte_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 20, 40]
+  normal_range: [0, 20]
  Aberrant Lymphocyte:
   aliases:
    - Aberrant lymphocytes %
    - Aberrant Lymphocytes
    - aberrant lymphocyte
+   - aberrant_lymphocyte_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
   crit_points: [0, 2]
+  normal_range: [0, 2]
  Hairy Cell:
   aliases:
    - Hairy cells %
    - Hairy Cells
    - hairy cell
+   - hairy_cell_percentage
   groups:
    - WBC diff
    - percent
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
  Sezary Cell:
   aliases:
    - Sezary cells %
    - Sezary Cells
    - sezary cell
+   - sezary_cell_percentage
   groups:
    - WBC diff
    - percent
+  normal_range: [0, 0.5]
  Monocyte:
   aliases:
    - Monocytes %
@@ -152,12 +178,14 @@ variables:
    - Monocytes %, film
    - Monocytes
    - monocyte
+   - monocyte_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
    - OMR compare
   crit_points: [4, 8]
+  normal_range: [4, 8]
  Basophil:
   aliases:
    - Basophils %
@@ -165,12 +193,14 @@ variables:
    - Basophils %, film
    - Basophils
    - basophil
+   - basophil_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
    - OMR compare
   crit_points: [0, 2, 5]
+  normal_range: [0, 2]
  Eosinophil:
   aliases:
    - Eosinophils %
@@ -178,18 +208,21 @@ variables:
    - Eosinophils %, film
    - Eosinophils
    - eosinophil
+   - eosinophil_percentage
   groups:
    - WBC diff
    - percent
    - WBC&PLT compare
    - OMR compare
   crit_points: [0, 6]
+  normal_range: [0, 6]
  Unclassified WBC:
   aliases:
    - Not classed
    - Unclassified %
    - Unclassified Cells
    - unclassified
+   - unclassified_percentage
   groups:
    - WBC diff
    - percent
@@ -213,6 +246,7 @@ variables:
    - Nucleated RBCs*
    - Normoblast
    - nucleated rbc
+   - nucleated_rbc_percentage
    - Nucleated RBCs
   groups:
    - WBC-like
@@ -220,6 +254,7 @@ variables:
    - WBC&PLT compare
    - OMR compare
   crit_points: [0, 1]
+  normal_range: [0, 1]
  Smudge Cell:
   aliases:
    - Smudge cell
@@ -227,28 +262,33 @@ variables:
    - Smudge cells
    - Smudge Cells*
    - smudge cell
+   - smudge_cell_percentage
   groups:
    - WBC-like
    - percent-like
    - WBC&PLT compare
   crit_points: [0, 1]
+  normal_range: [0, 10]
  Megakaryocyte:
   aliases:
    - MK
   groups:
    - WBC-like
    - percent-like
+  normal_range: [0, 0.5]
  Artifact:
   aliases:
    - Artefact
    - Artifacts
    - artifact
+   - artifact_percentage
   groups:
    - WBC-like
    - percent-like
  Other non-WBC:
   aliases:
    - others
+   - others_percentage
   groups:
    - WBC-like
    - percent-like
@@ -258,6 +298,7 @@ variables:
    - Dohle bodies
    - WBC morphology (present / not present) [Dohle Bodies]
    - dohle bodies
+   - dohle_bodies_percentage
   groups:
    - WBC morphology
    - density
@@ -270,10 +311,12 @@ variables:
    - Pelger cells
    - WBC morphology (present / not present) [Pelger Cells]
    - pelger cell
+   - pelger_cell_percentage
   groups:
    - WBC morphology
    - density
    - binary
+  normal_range: [0, 0.5]
  Auer Rods:
   aliases:
    - AUER RODS PRESENT
@@ -281,21 +324,25 @@ variables:
    - Blast auer rods
    - WBC morphology (present / not present) [Blast Auer Rods]
    - blast auer rods
+   - blast_auer_rods_percentage
   groups:
    - WBC morphology
    - density
    - binary
+  normal_range: [0, 0.5]
  PLT:
   aliases:
    - Platelet Estimate
    - Platelets manual - blood
    - platelet
+   - platelet_density_count
   groups:
    - PLT Estimate
    - count
    - WBC&PLT compare
    - OMR compare
   crit_points: [150, 450]
+  normal_range: [150, 450]
  PLT Clumps:
   aliases:
    - PLT clumps
@@ -303,19 +350,23 @@ variables:
    - Platelets clumps
    - PLT morphology (present / not present) [PLT Clumping]
    - plt_clump
+   - platelet_clumping_count
   groups:
    - PLT morphology
    - density
    - binary
+  normal_range: [0, 0.5]
  Satellitisms:
   aliases:
    - PLT SATELLITISM NOTED ON SMEAR
    - Platelets Satellitism
    - PLT morphology (present / not present) [PLT Satellitism]
+   - platelet_satellitism_count
   groups:
    - PLT morphology
    - density
    - binary
+  normal_range: [0, 0.1]
  Giant Platelet:
   aliases:
    - GIANT PLT'S NOTED ON SMEAR
@@ -324,11 +375,13 @@ variables:
    - PLT morphology (graded 0-3)\\n [Giant Platelets]
    - giant platelet
    - giant platelets
+   - giant_platelets_percentage
   groups:
    - PLT morphology
    - density
    - grade
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Large Platelet:
@@ -339,11 +392,13 @@ variables:
    - PLT morphology (graded 0-3)\\n [Large Platelets]
    - large platelet
    - large platelets
+   - large_platelets_percentage
   groups:
    - PLT morphology
    - density
    - grade
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Agranular Platelet:
@@ -353,11 +408,13 @@ variables:
    - PLT morphology (graded 0-3)\\n [Agranular Platelets]
    - agranular platelet
    - agranular platelets
+   - agranular_platelets_percentage
   groups:
    - PLT morphology
    - density
    - grade
   crit_points: [0, 2, 5]
+  normal_range: [0, 2]
   thresholds: [2, 5]
   grades: [0, 2, 3]
  Acanthocytes:
@@ -366,6 +423,7 @@ variables:
    - Acanthocytes (spur)
    - spur
    - acanthocytes
+   - acanthocytes_percentage
    - RBC morphology - shape (graded 0-3) [Acanthocytes ]
   groups:
    - RBC morphology
@@ -373,16 +431,19 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Anisocytosis:
   aliases:
    - anisocytosis
+   - anisocytosis_percentage
    - RBC morphology - size (graded 0-3) [Anisocytosis]
   groups:
    - RBC morphology
    - RBC size
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Basophilic stippling:
@@ -390,6 +451,7 @@ variables:
    - Basophilic Stippling
    - basophilic_stippling
    - basophilic stippling
+   - basophilic_stippling_percentage
    - RBC morphology - Inclusions (graded 0-3) [Basophilic stippling]
   groups:
    - RBC morphology
@@ -397,6 +459,7 @@ variables:
    - grade
    - RBC inclusions
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Bite cells:
@@ -404,6 +467,7 @@ variables:
    - Bite Cells
    - bite
    - bite cells
+   - bite_cells_percentage
    - RBC morphology - shape (graded 0-3) [Bite cells]
   groups:
    - RBC morphology
@@ -411,6 +475,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
   thresholds: [1, 2]
   grades: [0, 2, 3]
  Blister cells:
@@ -418,6 +483,7 @@ variables:
    - Blister Cells
    - blister
    - blister cells
+   - blister_cells_percentage
    - RBC morphology - shape (graded 0-3) [Blister cells]
   groups:
    - RBC morphology
@@ -425,6 +491,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
   thresholds: [1, 2]
   grades: [0, 2, 3]
  Burr Cells:
@@ -434,6 +501,7 @@ variables:
    - Burr-cells
    - burr
    - echinocytes
+   - echinocytes_percentage
    - RBC morphology - shape (graded 0-3) [Echinocytes ]
   groups:
    - RBC morphology
@@ -441,11 +509,13 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Elliptocytes:
   aliases:
    - elliptocytes
+   - elliptocytes_percentage
    - RBC morphology - shape (graded 0-3) [Elliptocytes]
   groups:
    - RBC morphology
@@ -453,12 +523,14 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Helmet cells:
   aliases:
    - helmet
    - helmet cells
+   - helmet_cells_percentage
    - RBC morphology - shape (graded 0-3) [Helmet cells]
   groups:
    - RBC morphology
@@ -466,6 +538,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
   thresholds: [1, 2]
   grades: [0, 2, 3]
  Howell-Jolly:
@@ -474,6 +547,7 @@ variables:
    - Howell-Jolly bodies
    - howell_jolly
    - howell jolly bodies
+   - howell_jolly_bodies_percentage
    - RBC morphology - Inclusions (graded 0-3) [Howell-Jolly bodies]
   groups:
    - RBC morphology
@@ -481,6 +555,7 @@ variables:
    - grade
    - RBC inclusions
   crit_points: [0, 2, 3]
+  normal_range: [0, 2]
   thresholds: [2, 3]
   grades: [0, 2, 3]
  Hypochromia:
@@ -488,6 +563,7 @@ variables:
    - Hypochromasia
    - hypochromatic
    - hypochromia
+   - hypochromia_percentage
    - RBC morphology - color (graded 0-3) [Hypochromia]
   groups:
    - RBC morphology
@@ -495,12 +571,14 @@ variables:
    - grade
    - RBC color
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Macrocytes:
   aliases:
    - Macrocytosis
    - macrocytes
+   - macrocytes_percentage
    - RBC morphology - size (graded 0-3) [Macrocytosis]
   groups:
    - RBC morphology
@@ -508,12 +586,14 @@ variables:
    - grade
    - RBC size
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Microcytes:
   aliases:
    - Microcytosis
    - microcytes
+   - microcytes_percentage
    - RBC morphology - size (graded 0-3) [Microcytosis]
   groups:
    - RBC morphology
@@ -521,11 +601,13 @@ variables:
    - grade
    - RBC size
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Ovalocytes:
   aliases:
    - ovalocytes
+   - ovalocytes_percentage
    - RBC morphology - shape (graded 0-3) [Ovalocytes]
   groups:
    - RBC morphology
@@ -533,6 +615,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Pappenheimer:
@@ -541,6 +624,7 @@ variables:
    - Pappenheimer bodies
    - pappenheimer
    - pappenheimer bodies
+   - pappenheimer_bodies_percentage
    - RBC morphology - Inclusions (graded 0-3) [Pappenheimer ]
   groups:
    - RBC morphology
@@ -548,6 +632,7 @@ variables:
    - grade
    - RBC inclusions
   crit_points: [0, 2, 3]
+  normal_range: [0, 2]
   thresholds: [2, 3]
   grades: [0, 2, 3]
  Parasites:
@@ -556,6 +641,7 @@ variables:
    - Micro-organisms (Parasites)
    - micro_organisms
    - micro organisms
+   - micro_organisms_percentage
    - RBC morphology - Inclusions (graded 0-3) [Parasites]
   groups:
    - RBC morphology
@@ -563,6 +649,7 @@ variables:
    - grade
    - RBC inclusions
   crit_points: [0, 1, 5]
+  normal_range: [0, 1]
   thresholds: [0, 1, 5]
   grades: [0, 1, 2, 3]
  Poikilocytes:
@@ -574,11 +661,13 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Poikilocytosis:
   aliases:
    - poikilocytosis
+   - poikilocytosis_percentage
    - RBC morphology - shape (graded 0-3) [Poikilocytosis]
   groups:
    - RBC morphology
@@ -586,12 +675,14 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Polychromasia:
   aliases:
    - polychromatic
    - polychromasia
+   - polychromasia_percentage
    - RBC morphology - color (graded 0-3) [Polychromasia]
   groups:
    - RBC morphology
@@ -599,31 +690,37 @@ variables:
    - grade
    - RBC color
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  RBC Agglutination:
   aliases:
    - RBC agglutination
    - agglutination
+   - agglutination_count
    - RBC morphology - Irregular distribution (graded 0-3) [Agglutination]
   groups:
    - RBC morphology
    - density
    - grade
    - RBC arrangement
+  normal_range: [0, 1]
  Rouleaux:
   aliases:
    - rouleaux
+   - rouleaux_formation_count
    - RBC morphology - Irregular distribution (graded 0-3) [Rouleaux formation]
   groups:
    - RBC morphology
    - density
    - grade
    - RBC arrangement
+  normal_range: [0, 1]
  Schistocytes:
   aliases:
    - Schistocytes (RBC Fragments)
    - schistocytes
+   - schistocytes_percentage
    - RBC morphology - shape (graded 0-3) [Schistocytes]
   groups:
    - RBC morphology
@@ -631,6 +728,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
   thresholds: [0, 1, 2]
   grades: [0, 1, 2, 3]
  Sickle cells:
@@ -638,6 +736,7 @@ variables:
    - Sickle Cells
    - sickle
    - sickle cells
+   - sickle_cells_percentage
    - RBC morphology - shape (graded 0-3) [Sickle cells]
    - Sickle
   groups:
@@ -646,11 +745,13 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
   thresholds: [1, 2]
   grades: [0, 2, 3]
  Spherocytes:
   aliases:
    - spherocytes
+   - spherocytes_percentage
    - RBC morphology - shape (graded 0-3) [Spherocytes]
   groups:
    - RBC morphology
@@ -658,11 +759,13 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Stomatocytes:
   aliases:
    - stomatocytes
+   - stomatocytes_percentage
    - RBC morphology - shape (graded 0-3) [Stomatocytes]
   groups:
    - RBC morphology
@@ -670,6 +773,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Target cells:
@@ -677,6 +781,7 @@ variables:
    - Target Cells
    - target
    - target cells
+   - target_cells_percentage
    - RBC morphology - shape (graded 0-3) [Target cells]
   groups:
    - RBC morphology
@@ -684,6 +789,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Tear drop cells:
@@ -693,6 +799,7 @@ variables:
    - Teardrop cells
    - tear_drop
    - teardrop cells
+   - teardrop_cells_percentage
    - RBC morphology - shape (graded 0-3) [Teardrop cells]
   groups:
    - RBC morphology
@@ -700,6 +807,7 @@ variables:
    - grade
    - RBC shape
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Total Neutrophil:
@@ -716,6 +824,7 @@ variables:
     - Segmented Neutrophil
     - Band Neutrophil
   crit_points: [40, 70]
+  normal_range: [40, 70]
  Variant Lymphocyte:
   groups:
    - WBC diff
@@ -728,6 +837,7 @@ variables:
     - Atypical Lymphocyte
     - Aberrant Lymphocyte
   crit_points: [0, 10, 15]
+  normal_range: [0, 10]
  Total Lymphocyte:
   groups:
    - WBC diff
@@ -742,6 +852,7 @@ variables:
     - Atypical Lymphocyte
     - Aberrant Lymphocyte
   crit_points: [20, 50]
+  normal_range: [20, 50]
  Immature:
   groups:
    - WBC diff
@@ -754,6 +865,7 @@ variables:
     - Myelocyte
     - Promyelocyte
   crit_points: [0, 1, 2]
+  normal_range: [0, 1]
  Immature&Blast:
   groups:
    - WBC diff
@@ -767,6 +879,7 @@ variables:
     - Promyelocyte
     - Blast
   crit_points: [0, 1, 5]
+  normal_range: [0, 1]
  EllipOval:
   groups:
    - RBC morphology
@@ -779,6 +892,7 @@ variables:
     - Elliptocytes
     - Ovalocytes
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  AcanoEchino:
@@ -793,12 +907,14 @@ variables:
     - Acanthocytes
     - Burr Cells
   crit_points: [0, 5, 20]
+  normal_range: [0, 5]
   thresholds: [5, 20]
   grades: [0, 2, 3]
  Large&Giant PLTs:
   groups:
    - derived
   crit_points: [0, 11, 20]
+  normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
  Age:
@@ -846,6 +962,7 @@ variables:
    - RBC
   groups:
    - autoCBC
+
 
 
 

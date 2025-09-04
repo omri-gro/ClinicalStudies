@@ -170,7 +170,7 @@ def raw_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
                 numeric_part = match.group(1).lstrip("0") or "0"  # Preserve 0 if all zeros
                 return numeric_part
             else:
-                print(f"\033[91Could not parse SampleID: {raw_id}\033[0m")
+                print(f"\033[91mCould not parse SampleID: {raw_id}\033[0m")
                 return raw_id  # fallback: return raw
 
         df[id_col] = df[id_col].apply(clean_id)
@@ -194,6 +194,11 @@ def raw_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
 
     if "SampleID" not in df.columns:
         raise ValueError(f"Missing 'SampleID' column in {file_name}")
+
+    # use appropriate ID standardization method according to study type
+    # if 'Mast cell' in df.columns and df['SampleID'][0][-2].isalpha():
+
+
     df = standardize_sample_ids(df, id_col="SampleID")
 
     # Add metadata columns
@@ -412,7 +417,7 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
     return df
 
 
-def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None):
+def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None, to_100=True):
     """
     Convert cell counts to cell differential, with
     Args:
@@ -420,6 +425,7 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None):
         metadata (MetadataBundle): Object with variable groups metadata.
         diff_cells (str or list): Group of cells included in the differential.
         additional_cells (str or list, optional): Group of cells to be converted to percentage according to the totalcells in diff_cells.
+        to_100 (bool, optional): If true will calculate percetange values by 100 (so 100% is 100 instead of 1).
         # consider adding option when diff_cells are already percentages and only additional cells need conversion to percentages (given the total WBC variable).
 
     Returns:
@@ -469,13 +475,14 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None):
     df["_total_WBC"] = df[diff_vars].sum(axis=1, skipna=True)
 
     # Replace diff cells with percentages
+    multiplier = 100 if to_100 else 1
     for var in diff_vars:
-        df[var] = df[var] / df["_total_WBC"]
+        df[var] = multiplier * df[var] / df["_total_WBC"]
         print(f"Updated '{var}' to percentage of total WBC.")
 
     # Replace additional cells with percentages relative to total WBC
     for var in additional_vars:
-        df[var] = df[var] / df["_total_WBC"]
+        df[var] = multiplier * df[var] / df["_total_WBC"]
         print(f"Updated '{var}' to percentage of total WBC (additional cell).")
 
     # Drop helper column
@@ -686,6 +693,23 @@ def create_derived_variables_long(df, metadata):
     return df
 
 
+""" functions mostly used as MethodComparator helpers but can also be used independently"""
+def long_pivoted_to_side_by_side(df: pd.DataFrame, comp_cols='Method', remain_index='SampleID', values='Measurment'):
+    """
+    Convert a pivoted row-per-measurement single-column-for-all-numbers dataframe to a readable single-sample-per-row.
+    Args:
+        df (pd.DataFrame): Long-format DataFrame (concatenated from all sites)
+        comp_cols (str or list, optional): Variable or variables that will now be column names (values in last variable name in list will be side-by-side).
+        remain_index (str or list, optional): Row identifiers for new dataframe (old column names that stay as before)
+        values (str or list, optional): Current column with numbers that will appear in the table (if list, they will be shown side-by-side)
+    Returns:
+        pd.Dataframe
+    """
+    # to do: add checks of inputs? add print of new table?
+    return df.pivot(index=remain_index, columns=comp_cols, values=values)
+
+
+
 """Statistical tools"""
 def calc_bias_at_points(reg_res, crit_points: List):
     """
@@ -787,19 +811,77 @@ def set_equal_limits_and_scale(fig=None, ax=None):
 
 
 """ pipeline functions - will change later """
-def short_pipe(df, metadata):
+def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"]):
     # standardize column names
     df = stnd_names(df, metadata.alias_map)
 
     # print warning if WBCs in differential don't add up to ~100
     check_diff_sum(df, metadata, tolerance=5)
 
-    df = pivot_long(df)
+    df = pivot_long(df, id_vars=id_vars)
+    df = add_grade_column(df, metadata)
+    df = df.dropna(subset=["SampleID", "Value"])
+
+    # calculate derived variables (e.g., Variant Lymphocytes)
+    df = create_derived_variables_long(df, metadata)
+    # reconsider performing only after concatenation of all long dataframes
+
+    return df
+
+
+def medium_pipe(file_name, site, method, metadata, sheet_name='Sheet1', dir=None,
+                id_vars=["SampleID", "Site", "Method", "FileName"], stnrd_id=True):
+    if stnrd_id:
+        df = raw_to_df(file_name, site, method, sheet_name, dir)
+    else:
+        df = raw_bma_to_df(file_name, site, method, sheet_name, dir)
+    return short_pipe(df, metadata, id_vars=id_vars)
+
+
+""" BMA study tools """
+def raw_bma_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
+    # temporary form, works when semi-automatic data prep used
+    # to do: create pointer function that chooses which raw-to-df function to use
+    df = read_to_df(file_name, sheet_name, dir)
+
+    # Standardize the SampleID
+    possible_id_cols = ["SampleID", "Sample", "Sample ID", "ID", "Barcode", "barcode", "Case", "Anonymised no.", "Case ID"]
+    id_col = next((col for col in possible_id_cols if col in df.columns), None)
+    if not id_col:
+        raise ValueError(f"No sample ID column found in {file_name}")
+    df.rename(columns={id_col: "SampleID"}, inplace=True)
+
+    if "SampleID" not in df.columns:
+        raise ValueError(f"Missing 'SampleID' column in {file_name}")
+
+    # Add metadata columns
+    df["Site"] = site
+    df["Method"] = method
+    df["FileName"] = os.path.basename(file_name)
+
+    # Strip leading/trailing spaces from column names
+    df.columns = df.columns.str.strip()
+
+    # to do: lowercase column names?
+    return df
+
+def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', dir=None,
+                      id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator']):
+    df = raw_bma_to_df(file_name, site, method, sheet_name, dir)
+    # standardize column names
+    df = stnd_names(df, metadata.alias_map)
+
+    if method == 'TEST':  # in future represent this as site rules
+        df = calc_diff(df, metadata, diff_cells="NDC", additional_cells="NDC-like")
+        df = calc_diff(df, metadata, diff_cells="NDC lineage")
+    else:
+        # print warning if WBCs in differential don't add up to ~100
+        check_diff_sum(df, metadata, tolerance=5, diff_cells="NDC")
+    df = pivot_long(df, id_vars=id_vars)
     df = add_grade_column(df, metadata)
     df = df.dropna(subset=["Value"])
 
     # calculate derived variables (e.g., Variant Lymphocytes)
     df = create_derived_variables_long(df, metadata)
     # reconsider performing only after concatenation of all long dataframes
-
     return df

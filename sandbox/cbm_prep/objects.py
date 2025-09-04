@@ -96,6 +96,48 @@ class MethodComparator:
         self.measurement_col = measurement_col  # currently not used
         self.results = {}  # stores regression results by (ref, test, variable, site)
 
+    @classmethod
+    def from_paths_dict(cls, paths: dict, metadata: sb.MetadataBundle, dir=None, measurement_col='Value',
+                        more_id_vars=None, stnrd_id=True, bma=False):
+        # maybe don't use, might be better to create something like that every time due to all edge cases
+
+        # function that gets dict with paths as values and descriptors of method/site/etc as keys
+        # will read, prepare, concatenate and convert to MethodComparator
+        # assumes all files are in same directory
+
+        # to do: clean and add error messages
+        # to do: use metadata to pass info like stnrd_id?
+
+        # list of columns that will not be pivoted
+        id_vars = ["SampleID", "Site", "Method", "FileName", 'Investigator'] if bma else ["SampleID", "Site", "Method", "FileName"]
+        if isinstance(more_id_vars, list):
+            id_vars += more_id_vars
+
+        df_srcs_list = []
+        for key, path in paths.items():
+            if isinstance(key, tuple) or isinstance(key, list):
+                site, method, *add_inf = key
+                if add_inf:
+                    reviewer = add_inf[0]
+                else:
+                    reviewer = None
+            else:
+                site = method = reviewer = None
+            if bma:
+                df = sb.bma_prep_pipeline(path, site, method, metadata, dir=dir, id_vars=id_vars)
+            else:
+                df = sb.medium_pipe(path, site, method, metadata, dir=dir, id_vars=id_vars, stnrd_id=stnrd_id)
+            df_srcs_list.append(df)
+        all_dfs = pd.concat(df_srcs_list)
+        return MethodComparator(all_dfs, measurement_col)
+
+
+    @classmethod
+    def from_excel_sheets(cls, excel_path):
+        # to do: goes through all sheets in an excel, read each into a df, prepare, concatenate and convert to MethodComparator
+        # need to decide on how to specify site/method/investigator
+        pass
+
     def _prepare_arrays(
         self,
         ref_method: str,
@@ -211,7 +253,7 @@ class MethodComparator:
             if ref == test:
                 continue
             try:
-                self.fit(ref, test, var, site_filter=sites, model=model, measurement_col=measurement_col)
+                self.fit(ref, test, var, site_filter=[sites], model=model, measurement_col=measurement_col)
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 

@@ -233,7 +233,7 @@ variables:
    - RBC shape
  Total Myeloid:
   groups:
-   - NDC
+   - NDC lineage total
    - percent
    - derived
   derived_from:
@@ -246,7 +246,7 @@ variables:
     - Band neutrophil
  Total Erythroid:
   groups:
-   - NDC
+   - NDC lineage total
    - percent
    - derived
   derived_from:
@@ -257,7 +257,7 @@ variables:
     - Normoblast
  Total Lymphoid:
   groups:
-   - NDC
+   - NDC lineage total
    - percent
    - derived
   derived_from:
@@ -282,3 +282,34 @@ variables:
  Findings:
   groups:
    - DemData
+ WHO_Criteria:
+  groups:
+   - DemData
+ Double:
+  groups:
+   - boolean
+ Total Nucleated:
+  aliases:
+   - Total nucleated cells
+  groups:
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Blast
+    - Promyelocyte
+    - Myelocyte
+    - Metamyelocyte
+    - Segmented neutrophil
+    - Band neutrophil
+    - Plasma cell
+    - Lymphocyte
+    - Erythroblast
+    - Basophilic normoblast
+    - Polychromatophilic normoblast
+    - Normoblast
+    - Monocyte
+    - Eosinophil
+    - Basophil
+    - Mast cell
+    - Unclassified
