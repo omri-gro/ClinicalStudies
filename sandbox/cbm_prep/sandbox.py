@@ -879,7 +879,7 @@ def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', di
         check_diff_sum(df, metadata, tolerance=5, diff_cells="NDC")
     df = pivot_long(df, id_vars=id_vars)
     df = add_grade_column(df, metadata)
-    df = df.dropna(subset=["Value"])
+    df = df.dropna(subset=["Value", "Grade"], how="all")
 
     # calculate derived variables (e.g., Variant Lymphocytes)
     df = create_derived_variables_long(df, metadata)

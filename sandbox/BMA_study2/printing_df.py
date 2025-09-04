@@ -23,9 +23,10 @@ if __name__ == "__main__":
     # start cleaning for representation
     # will be arguments in future function
     needed_vars = metadata.variable_groups['percent']  # + metadata.variable_groups['Evaluation parameter']
+    needed_vars = metadata.variable_groups['Evaluation parameter']
     row_identifier = ['SampleID', 'Variable']  # would include 'Site' in many future use cases
     comp_cols = ['Investigator', 'Method']
-    values = 'Value'
+    values = 'Grade'
     decimals = 2  # default to be None, only set this if all values are numeric
     col_ord = [list(methd_comp.df[col].unique()) for col in comp_cols]
     # col_ord = [list(methd_comp.df['Method']),  list(methd_comp.df['Investigator'])]  # order of columns appearance in output - can be list, list of tuples (if multiindex) or list of lists with size of first list same as comp_cols
@@ -53,6 +54,6 @@ if __name__ == "__main__":
 
 
 
-    out_wide.to_csv(r'results/OHSU_wide_57_samples_NDC.csv')
+    out_wide.to_csv(r'results/OHSU_wide_57_samples_eval_param.csv')
 
 
