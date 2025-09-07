@@ -138,6 +138,12 @@ class MethodComparator:
         # need to decide on how to specify site/method/investigator
         pass
 
+    def export_comparison_matrix(self, out_path=None, **kwargs) -> pd.DataFrame:
+        wide_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **kwargs)
+        if out_path:
+            sb.write_df_to_file(wide_df, out_path)
+        return wide_df
+
     def _prepare_arrays(
         self,
         ref_method: str,
@@ -253,7 +259,7 @@ class MethodComparator:
             if ref == test:
                 continue
             try:
-                self.fit(ref, test, var, site_filter=[sites], model=model, measurement_col=measurement_col)
+                self.fit(ref, test, var, site_filter=sites, model=model, measurement_col=measurement_col)
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 
@@ -363,13 +369,7 @@ class MethodComparator:
             df = self.biases_to_dataframe()
         else:
             raise ValueError(f"{result_type} result_type not supported")
-        format = filepath.split(".")[-1]
-        if format.lower() == "csv":
-            df.to_csv(filepath, index=False)
-        elif format.lower() in ("xlsx", "excel"):
-            df.to_excel(filepath, index=False)
-        else:
-            raise ValueError("Format must be 'csv' or 'excel'.")
+        sb.write_df_to_file(df, filepath)
 
     def plot_all_regressions(self, pdf_path: str, *, style: Dict = None, scatter_kwargs: Dict = None, overlay_kwargs: Dict = None):
         # to do: add option where pdf_path=None, in which case plots are shown directly

@@ -18,7 +18,11 @@ if __name__ == "__main__":
             (site, 'TEST'): f'{site}_CRF_TEST.csv'}
     methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=cur_dir, bma=True)
 
-
+    # use example of final function
+    wide = methd_comp.export_comparison_matrix(
+        value_col="Grade",
+        out_path=r'results/OHSU_wide_57_samples_eval_param.xlsx'
+    )
 
     # start cleaning for representation
     # will be arguments in future function
@@ -27,7 +31,7 @@ if __name__ == "__main__":
     row_identifier = ['SampleID', 'Variable']  # would include 'Site' in many future use cases
     comp_cols = ['Investigator', 'Method']
     values = 'Grade'
-    decimals = 2  # default to be None, only set this if all values are numeric
+    decimals = 2
     col_ord = [list(methd_comp.df[col].unique()) for col in comp_cols]
     # col_ord = [list(methd_comp.df['Method']),  list(methd_comp.df['Investigator'])]  # order of columns appearance in output - can be list, list of tuples (if multiindex) or list of lists with size of first list same as comp_cols
 

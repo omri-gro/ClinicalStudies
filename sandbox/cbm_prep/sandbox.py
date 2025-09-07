@@ -4,8 +4,9 @@ import os
 import re
 import yaml
 import matplotlib.pyplot as plt
-from typing import List
+from typing import List, Iterable, Mapping, Optional, Sequence, Union
 from matplotlib.backends.backend_pdf import PdfPages
+from pathlib import Path
 
 """
 creating derived_df that is a pivoted dataframe with row for each measurement (parameter, sample, site, method combination)
@@ -117,6 +118,82 @@ def load_yaml(path):
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
+def write_df_to_file(df: pd.DataFrame,
+                     out_path: Union[str, Path]):
+    """ Write dataframe to either Excel or csv"""
+    format = out_path.split(".")[-1]
+    if format.lower() == "csv":
+        df.to_csv(out_path, index=False)
+    elif format.lower() in ("xlsx", "excel"):
+        df.to_excel(out_path, index=False)
+    else:
+        raise ValueError("Format must be 'csv' or 'excel'.")
+
+def _as_df(obj_or_df) -> pd.DataFrame:
+    """
+        For functions that can treat either a MethodComparator or a DataFrame, except either.
+    """
+    df = getattr(obj_or_df, "df", None)   # change or set fallback for different attribute name ('data' instead of 'df')
+    if isinstance(df, pd.DataFrame):
+        return df.copy()
+    if isinstance(obj_or_df, pd.DataFrame):
+        return obj_or_df.copy()
+    raise TypeError("Expected a MethodComparator or a pandas DataFrame.")
+
+def _round_df(df: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
+    out = df.copy()
+    if isinstance(decimals, int):
+        # global rounding of numerics
+        out = out.apply(pd.to_numeric, errors="ignore")
+        for c in out.columns:
+            if pd.api.types.is_numeric_dtype(out[c]):
+                out[c] = out[c].round(decimals)
+    else:
+        print(f'{decimals} not integer. Rounding not performed.')
+    return out
+
+def safe_pivot(
+        df: pd.DataFrame,
+        index: Sequence[str],
+        columns: Sequence[str],
+        values: str,
+        sort_by: Optional[Sequence[str]] = None,   # e.g., ["ReviewDate","Investigator"]
+        on_duplicates: str = "error",   # "error" | "first" | "last" | "mean" | "median" | "sum" | "count" | "any" | "all"
+        ascending: Union[bool, Sequence[bool]] = True
+) -> pd.DataFrame:
+    """ Pivot with robust duplicate handling. """
+    if sort_by:
+        df = df.sort_values(sort_by, ascending=ascending, kind="mergesort")
+
+    # duplicate probe
+    key_cols = list(index) + list(columns)
+    dup_mask = df.duplicated(subset=key_cols, keep=False)
+
+    if not dup_mask.any():
+        return df.pivot(index=index, columns=columns, values=values)
+
+    dup_keys = (
+        df.loc[dup_mask, key_cols]
+        .value_counts()
+        .rename("n")
+        .reset_index()
+        .sort_values("n", ascending=False)
+    )
+
+    dup_report_str = "Duplicate entries found for pivot keys.\n" \
+                     f"Examples:\n{dup_keys.head(5).to_string(index=False)}"
+
+    if on_duplicates == "error":
+        raise ValueError(dup_report_str)
+    else:
+        print(dup_report_str)
+
+    if on_duplicates in {"first", "last"}:
+        # keep first/last row within each key group (deterministic due to pre-sort)
+        dedup = (df.drop_duplicates(subset=key_cols, keep=on_duplicates))
+        return dedup.pivot(index=index, columns=columns, values=values)
+
+    return df.pivot_table(index=index, columns=columns, values=values, aggfunc=on_duplicates, observed=True)
 
 """Data import and preparation tools"""
 def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
@@ -708,6 +785,103 @@ def long_pivoted_to_side_by_side(df: pd.DataFrame, comp_cols='Method', remain_in
     # to do: add checks of inputs? add print of new table?
     return df.pivot(index=remain_index, columns=comp_cols, values=values)
 
+def to_comparison_matrix(
+        obj_or_df: Union["MethodComparator", pd.DataFrame],
+        metadata=None,
+        # identifiers that define a datapoint row (only the ones present will be used) - remember to move "Investigator" to here if each investigator in own row
+        row_identifiers: Sequence[str] = ("SampleID", "Variable", "Site"),
+        # which columns define the side-by-side comparison blocks
+        comparison_dims: Sequence[str] = ("Method", "Investigator"),
+        value_col: str = "Value",  # or "Grade"
+        needed_vars: Optional[Iterable[str]] = None,   # if None and metadata provided, pull from metadata.variable_groups['percent']
+        require_complete_cases: bool = True,           # only keep rows where all comparison cells are present (no NaNs)
+        drop_na_mode: str = "all",  # or "any" if even a single NaN is enough to drop
+        decimals: int = 2,   # will attempt to round any output column possible. Change to non-integer to avoid rounding.
+        column_order: Optional[Sequence[Sequence]] = None,  # e.g., [list_of_methods, list_of_investigators]; order applied where dims exist
+        flatten_columns: bool = True,  # flatten MultiIndex columns like ('MethodA','Inv1') -> "MethodA|Inv1"
+        sep: str = "|",  # for column name flattening
+        # arguments for handling duplicates (see safe_pivot)
+        on_duplicates: str = "error",
+        sort_by: Optional[Sequence[str]] = None,   # e.g., ["ReviewDate","Investigator"]
+        ascending: Union[bool, Sequence[bool]] = True,
+) -> pd.DataFrame:
+    """
+        Build and save a wide, readable matrix of only the datapoints actually used in comparisons.
+
+        Returns the wide DataFrame (also saved to Excel/CSV per out_path).
+    """
+    df = _as_df(obj_or_df)
+
+    # --- choose variables ---
+    if needed_vars is None and metadata is not None:
+        # future adjustment - change tuple to order of preference on variables group names
+        for key in ("Evaluation parameter", "percent"):
+            if getattr(metadata, "variable_groups", None) and key in metadata.variable_groups:
+                needed_vars = metadata.variable_groups[key]
+                break
+    if needed_vars is not None:
+        df = df[df["Variable"].isin(needed_vars)]
+
+    # --- keep only columns that actually exist ---
+    present_identifiers = [c for c in row_identifiers if c in df.columns]
+    present_comp_dims = [c for c in comparison_dims if c in df.columns]
+    if not present_identifiers:
+        raise ValueError(f"No the columns {row_identifiers} were found in the data.")
+    if not present_comp_dims:
+        raise ValueError(f"None of the columns {comparison_dims} exist in the data.")
+
+    # --- pivot to side-by-side ---
+    wide = safe_pivot(df, index=present_identifiers, columns=present_comp_dims, values=value_col,
+                      on_duplicates=on_duplicates, sort_by=sort_by, ascending=ascending)
+    wide = df.pivot(index=present_identifiers, columns=present_comp_dims, values=value_col)
+
+    # Name the row index levels using the row identifiers used
+    wide.index.names = list(present_identifiers)
+
+    # --- enforce complete cases if requested (ensure true ‘used’ datapoints only) ---
+    if require_complete_cases:
+        # drop rows with any missing across all comparison cells
+        if isinstance(wide.columns, pd.MultiIndex):
+            subset_cols = wide.columns
+        else:
+            subset_cols = list(wide.columns)
+        wide = wide.dropna(axis=0, how=drop_na_mode, subset=subset_cols)
+
+    # --- column reordering by provided order ---
+    if not column_order:
+        column_order = [list(df[col].unique()) for col in comparison_dims]
+    # Build a MultiIndex product for the dims we actually have.
+    # If user supplied lengths mismatch (e.g., only methods list but no Investigator in data), use what exists.
+    # Example: column_order = [methods, investigators]
+    # If investigators aren't present, only use 'methods' order.
+    usable_orders = []
+    for dim_name, order in zip(present_comp_dims, column_order):
+        # Only include if this dim is present
+        if dim_name in present_comp_dims and order is not None:
+            usable_orders.append(order)
+
+    # Reindex by product when we still have at least 1 reorder list
+    if usable_orders:
+        try:
+            if len(present_comp_dims) == 1:
+                # Single level columns
+                new_cols = pd.Index(usable_orders[0], name=present_comp_dims[0])
+            else:
+                # Multi level columns
+                new_cols = pd.MultiIndex.from_product(usable_orders, names=list(present_comp_dims))
+            wide = wide.reindex(columns=new_cols)
+        except Exception:
+            # keep current order if mismatch
+            pass
+
+    wide = _round_df(wide, decimals)
+
+    # --- optionally flatten columns for friendlier Excel/CSV ---
+    if flatten_columns and isinstance(wide.columns, pd.MultiIndex):
+        wide.columns = [sep.join(map(str, col)).strip(sep) for col in wide.columns]
+        wide.columns = pd.Index(wide.columns, name=sep.join(present_comp_dims))
+
+    return wide
 
 
 """Statistical tools"""
