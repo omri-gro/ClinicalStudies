@@ -175,6 +175,7 @@ variables:
   aliases:
    - Monocytes %
    - Mסnocyte %
+   - MONO%(%)
    - Monocytes %, film
    - Monocytes
    - monocyte
@@ -190,6 +191,7 @@ variables:
   aliases:
    - Basophils %
    - Basסphil %
+   - BASO%(%)
    - Basophils %, film
    - Basophils
    - basophil
@@ -205,6 +207,7 @@ variables:
   aliases:
    - Eosinophils %
    - Eosinophil %
+   - EO%(%)
    - Eosinophils %, film
    - Eosinophils
    - eosinophil
@@ -242,6 +245,7 @@ variables:
    - Erythroblast (NRBC)
    - nRBC per 100 WBCs
    - nRBC %
+   - NRBC%(%)
    - NRBC, film
    - Nucleated RBCs*
    - Normoblast
@@ -333,6 +337,7 @@ variables:
  PLT:
   aliases:
    - Platelet Estimate
+   - PLT(10^3/uL)
    - Platelets manual - blood
    - platelet
    - platelet_density_count
@@ -813,6 +818,7 @@ variables:
  Total Neutrophil:
   aliases:
    - Neutrophil %
+   - NEUT%(%)
   groups:
    - WBC diff
    - percent
@@ -839,6 +845,8 @@ variables:
   crit_points: [0, 10, 15]
   normal_range: [0, 10]
  Total Lymphocyte:
+  aliases:
+   - LYMPH%(%)
   groups:
    - WBC diff
    - percent
@@ -926,44 +934,54 @@ variables:
  WBC:
   aliases:
    - WBC Auto
+   - WBC(10^3/uL)
   groups:
    - autoCBC
  HGB:
   aliases:
    - Hemoglobin
+   - HGB(g/dL)
   groups:
    - autoCBC
  HCT:
   aliases:
    - Hematocrit
+   - HCT(L/L)
   groups:
    - autoCBC
  MCV:
+  aliases:
+   - MCV(fL)
   groups:
    - autoCBC
  MCH:
+  aliases:
+   - MCH(pg)
   groups:
    - autoCBC
  MCHC:
+  aliases:
+   - MCHC(g/dL)
   groups:
    - autoCBC
  RDW:
   aliases:
    - RDWCV
+   - RDW-CV(%)
   groups:
    - autoCBC
  MPV:
   aliases:
+   - MPV(fL)
    - Mean platelet volume
   groups:
    - autoCBC
  RBC Auto:
   aliases:
    - RBC
+   - RBC(10^6/uL)
   groups:
    - autoCBC
-
-
 
 
 Source fixes:  # to do: change script so as to have keys be tuples of site and method
@@ -973,11 +991,11 @@ Source fixes:  # to do: change script so as to have keys be tuples of site and m
    - target: WBC-like
    - target: PLT morphology
      condition_column: RBC & PLT Morphology         # morphologies read as 0 only where 'RBC & PLT Morphology' is specified field
-     condition_values: ["Reviewed", "Unremarkable"]
+     condition_values: [""Reviewed"", ""Unremarkable""]
    - target: RBC morphology
      condition_column: RBC & PLT Morphology
-     condition_values: ["Reviewed", "Unremarkable"]
-  raw_given_as_grade: ["PLT morphology", "RBC morphology", "WBC morphology"]
+     condition_values: [""Reviewed"", ""Unremarkable""]
+  raw_given_as_grade: [""PLT morphology"", ""RBC morphology"", ""WBC morphology""]
 
  (BWH, Manual):
-  raw_given_as_grade: ["PLT morphology", "Dohle Bodies"]
+  raw_given_as_grade: [""PLT morphology"", ""Dohle Bodies""]

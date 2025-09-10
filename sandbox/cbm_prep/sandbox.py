@@ -424,7 +424,7 @@ def apply_src_fixes(df, metadata, src):
     return df
 
 
-def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_convert=True, drop_flagged=True):
+def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_convert=True, drop_flagged=True, force_num=True):
     """
     Check that differential variables (WBC, NDC, etc.) sum up to approximately 100%.
     If the sum is ~1 for all or nearly all rows and auto_convert=True, convert all diff_vars to percentage scale.
@@ -436,6 +436,7 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
         tolerance (float, optional): Acceptable deviation from 100%. Default is ±5.
         auto_convert (bool, optional): Whether to automatically multiply by 100 when sums are ~1.
         drop_flagged (bool, optional): Whether to remove from dataframe the flagged (not adding up to 100%) rows.
+        force_num (bool, optional): Whether to remove from dataframe rows where diff values are non-numeric (notice this will mess with rows that are fully grade-based).
 
     Prints:
         A warning for each sample where the sum of WBC diff variables
@@ -453,8 +454,30 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
         print(f"\033[91mNo {diff_cells} variables found in DataFrame.\033[0m")
         return
 
+    # Treat empty strings / pure whitespace as NaN before coercion
+    raw = df[wbc_diff_vars].replace(r"^\s*$", np.nan, regex=True)
+
+    # check if values are numeric, and if not print which ones are strings
+    # Coerce to numeric; anything non-numeric becomes NaN
+    numeric_view = raw.apply(pd.to_numeric, errors="coerce")
+    # Mask rows with any truly non-numeric values
+    non_numeric_mask = numeric_view.isna() & raw.notna()
+    offending_rows = non_numeric_mask.any(axis=1)
+    offending_idx = df.index[offending_rows]
+    # If all values are non-numeric
+    if numeric_view.notna().sum().sum() == 0:
+        print("WARNING: All values in selected columns are non-numeric. Nothing to sum.")
+        return None, df.index, numeric_view
+    # Print problematic rows
+    if not offending_idx.empty:
+        print("Dropping rows with non-numeric values (showing first 5):")
+        print(raw.loc[offending_idx].head(5))
+    # Keep safe rows only
+    df = raw.loc[~offending_rows]
+
     # Compute row-wise sum of WBC diff variables
     wbc_sum = df[wbc_diff_vars].sum(axis=1, skipna=True)
+
 
     # Identify rows where all WBC diff variables are NaN
     all_nan = df[wbc_diff_vars].isna().all(axis=1)
@@ -789,9 +812,9 @@ def to_comparison_matrix(
         obj_or_df: Union["MethodComparator", pd.DataFrame],
         metadata=None,
         # identifiers that define a datapoint row (only the ones present will be used) - remember to move "Investigator" to here if each investigator in own row
-        row_identifiers: Sequence[str] = ("SampleID", "Variable", "Site"),
+        row_identifiers: Sequence[str] = ("SampleID", "Site"),
         # which columns define the side-by-side comparison blocks
-        comparison_dims: Sequence[str] = ("Method", "Investigator"),
+        comparison_dims: Sequence[str] = ("Variable", "Method", "Investigator"),
         value_col: str = "Value",  # or "Grade"
         needed_vars: Optional[Iterable[str]] = None,   # if None and metadata provided, pull from metadata.variable_groups['percent']
         require_complete_cases: bool = True,           # only keep rows where all comparison cells are present (no NaNs)
@@ -849,7 +872,7 @@ def to_comparison_matrix(
 
     # --- column reordering by provided order ---
     if not column_order:
-        column_order = [list(df[col].unique()) for col in comparison_dims]
+        column_order = [list(row_identifiers)] + [list(df[col].unique()) for col in comparison_dims]
     # Build a MultiIndex product for the dims we actually have.
     # If user supplied lengths mismatch (e.g., only methods list but no Investigator in data), use what exists.
     # Example: column_order = [methods, investigators]

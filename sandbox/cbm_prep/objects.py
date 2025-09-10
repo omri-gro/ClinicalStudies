@@ -253,13 +253,13 @@ class MethodComparator:
         ref_methods = ensure_list(ref_methods)
         test_methods = ensure_list(test_methods)
         variables = ensure_list(variables)
-        site_filters = ensure_list(site_filters)
+        site_filters = ensure_list(site_filters)   # to do: figure out how to pass the site_filters correctly when sometimes list works and sometimes it end up as list of lists
 
         for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
             if ref == test:
                 continue
             try:
-                self.fit(ref, test, var, site_filter=sites, model=model, measurement_col=measurement_col)
+                self.fit(ref, test, var, site_filter=[sites], model=model, measurement_col=measurement_col)
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 
