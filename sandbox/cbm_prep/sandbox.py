@@ -4,7 +4,7 @@ import os
 import re
 import yaml
 import matplotlib.pyplot as plt
-from typing import List, Iterable, Mapping, Optional, Sequence, Union
+from typing import List, Iterable, Mapping, Optional, Sequence, Union, Tuple
 from matplotlib.backends.backend_pdf import PdfPages
 from pathlib import Path
 
@@ -424,6 +424,56 @@ def apply_src_fixes(df, metadata, src):
     return df
 
 
+def safe_row_sum(df: pd.DataFrame, cols: List[str], verbose: bool = True) -> Tuple[Optional[pd.Series], pd.Index, pd.DataFrame]:
+    """
+    Compute row-wise sums over `cols`, handling non-numeric values.
+
+    - Converts values to numeric (treats empty strings/whitespace as NaN).
+    - If all values are non-numeric, warns and returns None.
+    - Otherwise, drops rows with truly non-numeric values (prints first 5 if verbose).
+    - Returns:
+        sum_series: pd.Series or None
+        dropped_idx: index of rows dropped
+        numeric_view: coerced numeric DataFrame of cols
+    """
+    if not cols:
+        raise ValueError("`cols` must be a non-empty list of column names.")
+
+    missing_cols = [c for c in cols if c not in df.columns]
+    if missing_cols:
+        raise KeyError(f"Columns not in df: {missing_cols}")
+
+    # Replace empty strings / whitespace with NaN before coercion
+    raw = df[cols].replace(r"^\s*$", np.nan, regex=True)
+
+    # Coerce to numeric
+    numeric_view = raw.apply(pd.to_numeric, errors="coerce")
+
+    # Mask rows with any truly non-numeric values
+    non_numeric_mask = numeric_view.isna() & raw.notna()
+    offending_rows = non_numeric_mask.any(axis=1)
+    offending_idx = df.index[offending_rows]
+
+    # If all values are non-numeric
+    if numeric_view.notna().sum().sum() == 0:
+        if verbose:
+            print("WARNING: All values in selected columns are non-numeric. Nothing to sum.")
+        return None, df.index, numeric_view
+
+    # Print problematic rows (first 5 only)
+    if not offending_idx.empty and verbose:
+        print("Dropping rows with non-numeric values (showing first 5):")
+        print(raw.loc[offending_idx].head(5))
+
+    # Keep safe rows only
+    safe_numeric = numeric_view.loc[~offending_rows]
+
+    # Compute row-wise sums
+    sum_series = safe_numeric.sum(axis=1, skipna=True)
+
+    return sum_series, offending_idx, numeric_view
+
+
 def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_convert=True, drop_flagged=True, force_num=True):
     """
     Check that differential variables (WBC, NDC, etc.) sum up to approximately 100%.
@@ -453,6 +503,8 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
     if not wbc_diff_vars:
         print(f"\033[91mNo {diff_cells} variables found in DataFrame.\033[0m")
         return
+
+    # Compute row-wise sums over di
 
     # Treat empty strings / pure whitespace as NaN before coercion
     raw = df[wbc_diff_vars].replace(r"^\s*$", np.nan, regex=True)
@@ -808,6 +860,23 @@ def long_pivoted_to_side_by_side(df: pd.DataFrame, comp_cols='Method', remain_in
     # to do: add checks of inputs? add print of new table?
     return df.pivot(index=remain_index, columns=comp_cols, values=values)
 
+
+def _default_col_order(df: pd.DataFrame, comparison_dims) -> list[list]:
+    orders = []
+    for col in comparison_dims:
+        if col in df.columns:
+            vals = df[col].dropna().unique()
+            # sort values, but preserve natural ordering if mixed types
+            try:
+                vals = sorted(vals)
+            except Exception:
+                vals = list(vals)  # fall back to insertion order if un-sortable
+            orders.append(list(vals))
+        else:
+            orders.append([])
+    return orders
+
+
 def to_comparison_matrix(
         obj_or_df: Union["MethodComparator", pd.DataFrame],
         metadata=None,
@@ -872,7 +941,7 @@ def to_comparison_matrix(
 
     # --- column reordering by provided order ---
     if not column_order:
-        column_order = [list(row_identifiers)] + [list(df[col].unique()) for col in comparison_dims]
+        column_order = _default_col_order(df, present_comp_dims)
     # Build a MultiIndex product for the dims we actually have.
     # If user supplied lengths mismatch (e.g., only methods list but no Investigator in data), use what exists.
     # Example: column_order = [methods, investigators]
@@ -1013,6 +1082,7 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
     df = stnd_names(df, metadata.alias_map)
 
     # print warning if WBCs in differential don't add up to ~100
+    # need to reach decision if this should be df = check_diff_sum instead when organizing functions
     check_diff_sum(df, metadata, tolerance=5)
 
     df = pivot_long(df, id_vars=id_vars)
@@ -1023,6 +1093,8 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
     df = create_derived_variables_long(df, metadata)
     # reconsider performing only after concatenation of all long dataframes
 
+    print(df)
+
     return df
 
 
@@ -1032,7 +1104,9 @@ def medium_pipe(file_name, site, method, metadata, sheet_name='Sheet1', dir=None
         df = raw_to_df(file_name, site, method, sheet_name, dir)
     else:
         df = raw_bma_to_df(file_name, site, method, sheet_name, dir)
-    return short_pipe(df, metadata, id_vars=id_vars)
+    df = short_pipe(df, metadata, id_vars=id_vars)
+
+    return df
 
 
 """ BMA study tools """

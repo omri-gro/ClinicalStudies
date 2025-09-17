@@ -415,10 +415,6 @@ class MethodComparator:
                     pdf.savefig(fig)
                     plt.close()
 
-
-
-
-
 if __name__ == "__main__":
     analysis_name = 'bwh100_investigator_training'
     suffix = '_old_version'
