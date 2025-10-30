@@ -205,7 +205,8 @@ def plot_ver_reg_dbl(raw_data, x_var, y_var, meas1_2=[], cls_var=None, reg_ser=N
     # ax.yaxis.set_major_locator(MultipleLocator(tick_spacing))
     ax.legend()
     ax.grid(True)
-    plt.show()
+    # plt.show()
+    return fig, ax
 
 
 

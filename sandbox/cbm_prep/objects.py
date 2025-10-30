@@ -107,6 +107,7 @@ class MethodComparator:
 
         # to do: clean and add error messages
         # to do: use metadata to pass info like stnrd_id?
+        # to do: make it possible for the values in paths dict to be a list of multiple paths, instead of a single path
 
         # list of columns that will not be pivoted
         id_vars = ["SampleID", "Site", "Method", "FileName", 'Investigator'] if bma else ["SampleID", "Site", "Method", "FileName"]
@@ -115,19 +116,22 @@ class MethodComparator:
 
         df_srcs_list = []
         for key, path in paths.items():
-            if isinstance(key, tuple) or isinstance(key, list):
-                site, method, *add_inf = key
-                if add_inf:
-                    reviewer = add_inf[0]
+            try:
+                if isinstance(key, tuple) or isinstance(key, list):
+                    site, method, *add_inf = key
+                    if add_inf:
+                        reviewer = add_inf[0]
+                    else:
+                        reviewer = None
                 else:
-                    reviewer = None
-            else:
-                site = method = reviewer = None
-            if bma:
-                df = sb.bma_prep_pipeline(path, site, method, metadata, dir=dir, id_vars=id_vars)
-            else:
-                df = sb.medium_pipe(path, site, method, metadata, dir=dir, id_vars=id_vars, stnrd_id=stnrd_id)
-            df_srcs_list.append(df)
+                    site = method = reviewer = None
+                if bma:
+                    df = sb.bma_prep_pipeline(path, site, method, metadata, dir=dir, id_vars=id_vars)
+                else:
+                    df = sb.medium_pipe(path, site, method, metadata, dir=dir, id_vars=id_vars, stnrd_id=stnrd_id)
+                df_srcs_list.append(df)
+            except Exception as e:
+                print(f'\033[91mError when importing {key}: {e}\033[0m')
         all_dfs = pd.concat(df_srcs_list)
         return MethodComparator(all_dfs, measurement_col)
 
@@ -150,7 +154,8 @@ class MethodComparator:
         test_method: str,
         variable: str,
         measurement_col: Optional[str] = 'Value',
-        site_filter: Optional[List[str]] = None
+        site_filter: Optional[List[str]] = None,
+        on_duplicates: str = "raise",  # "raise" (default) or "first"
     ) -> Tuple[pd.Series, pd.Series, pd.Series]:
         """
         Internal helper: return matched (x, y, ids).
@@ -161,6 +166,7 @@ class MethodComparator:
         variable: variable to filter on (e.g., 'Total Neutrophil')
         site_filter: list or set of sites to include (optional)
         measurement_col: column name holding the measurement values
+        on_duplicates: either raise error if duplicates of same observation are found, or just take first one
 
     Returns:
         x: array of reference method measurements
@@ -173,7 +179,9 @@ class MethodComparator:
 
         # note this function actually does same thing as _prepare_arrays method from MethodComparator
         subset = self.df[self.df["Variable"] == variable].copy()
-        if site_filter is not None:
+        if site_filter is not None and site_filter is not [None]:
+            if isinstance(site_filter, str):
+                site_filter = [site_filter]
             subset = subset[subset["Site"].isin(site_filter)]
         subset = subset[subset["Method"].isin([ref_method, test_method])]
 
@@ -181,14 +189,35 @@ class MethodComparator:
         dup_key = ["SampleID", "Site", "Method"]
         dup_mask = subset.duplicated(dup_key, keep=False)
         if dup_mask.any():
-            offenders = (subset.loc[dup_mask, dup_key]
-                         .value_counts()
-                         .reset_index(name="count")
-                         .head(10))
-            raise ValueError(
-                "Duplicate rows per (SampleID, Site, Method) before pivot.\n"
-                f"Examples (up to 10):\n{offenders.to_string(index=False)}"
+            dup_summary = (
+                subset.loc[dup_mask, dup_key]
+                .value_counts()
+                .reset_index(name="count")
+                .sort_values("count", ascending=False)
             )
+
+            if on_duplicates == "raise":
+                preview = dup_summary.head(10).to_string(index=False)
+                raise ValueError(
+                    "Duplicate rows per (SampleID, Site, Method) before pivot.\n"
+                    f"Examples (up to 10):\n{preview}"
+                )
+
+            elif on_duplicates == "first":
+                # Keep the first occurrence per key, drop the rest
+                # Using sort_index() first to make 'first' deterministic wrt input order
+                before = len(subset)
+                subset = subset.sort_index().drop_duplicates(dup_key, keep="first")
+                after = len(subset)
+                kept = len(dup_summary)
+                dropped = before - after
+                print(
+                    f"[dedupe] on_duplicates='first': kept first row for {kept} "
+                    f"duplicate key(s); dropped {dropped} rows."
+                )
+
+            else:
+                raise ValueError("on_duplicates must be 'raise' or 'first'.")
 
         # Pivot: SampleID+Site as index, Methods as columns
         pivoted = subset.pivot_table(
@@ -218,7 +247,13 @@ class MethodComparator:
             measurement_col="Value"):
         """Run regression for one variable/site/method pair."""
 
-        x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter, measurement_col=measurement_col)
+        def ensure_list(x):  # might want to turn into general utility are part of more general function with 'product'
+            """If argument is a string, function return list with x as its only item"""
+            return [x] if isinstance(x, str) else x
+
+        x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter, measurement_col=measurement_col, on_duplicates="first")
+
+        site_filter = ensure_list(site_filter)
 
         # placeholder regression_func → replace with your real implementation
         stats = reg.regression_comp(x, y, reg_method=model)  # placeholder - replace later with different regression functions
@@ -231,7 +266,7 @@ class MethodComparator:
         else:
             result = RegressionResult(**stats)
 
-        key = (ref_method, test_method, variable, tuple(site_filter) if site_filter else "All")
+        key = (ref_method, test_method, variable, ",".join(site_filter) if site_filter else "All")
         self.results[key] = {
             "x": x,
             "y": y,
@@ -259,7 +294,7 @@ class MethodComparator:
             if ref == test:
                 continue
             try:
-                self.fit(ref, test, var, site_filter=[sites], model=model, measurement_col=measurement_col)
+                self.fit(ref, test, var, site_filter=sites, model=model, measurement_col=measurement_col)
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 
@@ -404,9 +439,10 @@ class MethodComparator:
 
         with PdfPages(pdf_path) as pdf:
             for data, rslt in self.results.items():
-                xname, yname, varname, _ = data
+                xname, yname, varname, site = data
                 if rslt['reg'].r is not None:
-                    scpc_style = {'title': varname, 'xlabel': xname, 'ylabel': yname}
+                    plot_title = varname if site == 'All' else f'{varname}\n{site}'
+                    scpc_style = {'title': plot_title, 'xlabel': xname, 'ylabel': yname}
                     final_style = plotting.merge_styles(base_style, user_style, scpc_style)
 
                     fig, ax = plt.subplots(figsize=final_style.get("figsize", (6, 5)))

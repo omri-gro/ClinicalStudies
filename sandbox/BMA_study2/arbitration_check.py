@@ -7,7 +7,7 @@ if __name__ == "__main__":
     investigators = {'Wei Xie': 'User1', 'Todd Williams': 'User2',
                      'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User3', 'Sam Sadigh': 'User4'}
 
-    investigators = {'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User1', 'Sam Sadigh': 'User2'}
+    # investigators = {'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User1', 'Sam Sadigh': 'User2'}
 
     typed_file = f'{site}_CRF_{mthd}.csv'
     df = pd.read_csv(typed_file)

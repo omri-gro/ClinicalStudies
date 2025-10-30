@@ -113,10 +113,10 @@ variables:
  LGL:
   aliases:
    - LARGE GRANULAR LYMPHOCYTES PRESENT
-   - Large Granular Lymphocytes
    - Large Granular Lymphocyte
    - Large granular lymphocytes %
    - Large Granular Lymphocytes (LGLs)
+   - Large Granular Lymphocytes
    - large granular lymphocyte
    - large_granular_lymphocyte_percentage
   groups:
@@ -155,12 +155,13 @@ variables:
   aliases:
    - Hairy cells %
    - Hairy Cells
+   - Hairy Celss
    - hairy cell
    - hairy_cell_percentage
-   - Hairy Celss
   groups:
    - WBC diff
    - percent
+   - WBC&PLT compare
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
  Sezary Cell:
@@ -250,11 +251,11 @@ variables:
    - NRBC%(%)
    - NRBC, film
    - Nucleated RBCs*
+   - NRBCs
    - Normoblast
    - nucleated rbc
    - nucleated_rbc_percentage
    - Nucleated RBCs
-   - NRBCs
   groups:
    - WBC-like
    - percent-like
@@ -417,6 +418,7 @@ variables:
    - agranular platelet
    - agranular platelets
    - agranular_platelets_percentage
+   - Agranular platelets
   groups:
    - PLT morphology
    - density
@@ -569,6 +571,7 @@ variables:
  Hypochromia:
   aliases:
    - Hypochromasia
+   - Hypochromatic cells
    - hypochromatic
    - hypochromia
    - hypochromia_percentage
@@ -688,6 +691,7 @@ variables:
   grades: [0, 2, 3]
  Polychromasia:
   aliases:
+   - Polychromatic cells
    - polychromatic
    - polychromasia
    - polychromasia_percentage
@@ -891,6 +895,28 @@ variables:
     - Blast
   crit_points: [0, 1, 5]
   normal_range: [0, 1]
+ Promylo&Myelo:
+  groups:
+   - WBC diff
+   - percent
+   - WBC&PLT compare
+   - derived
+  derived_from:
+   components:
+    - Myelocyte
+    - Promyelocyte
+  crit_points: [0, 1, 5]
+  normal_range: [0, 1]
+ Aber&Atyp:
+  groups:
+   - WBC diff
+   - percent
+   - WBC&PLT compare
+   - derived
+  derived_from:
+   components:
+    - Aberrant Lymphocyte
+    -  Atypical Lymphocyte
  EllipOval:
   groups:
    - RBC morphology
@@ -923,11 +949,55 @@ variables:
   grades: [0, 2, 3]
  Large&Giant PLTs:
   groups:
+   - PLT morphology
+   - percent
+   - grade
    - derived
+  derived_from:
+   components:
+    - Large Platelet
+    - Giant Platelet
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
+ RBC Shape:
+  groups:
+   - RBC morphology
+   - percent
+   - grade
+   - RBC shape
+   - derived
+  derived_from:
+   components:
+    - Acanthocytes
+    - Bite cells
+    - Blister cells
+    - Burr Cells
+    - Elliptocytes
+    - Helmet cells
+    - Ovalocytes
+    - Poikilocytes
+    - Poikilocytosis
+    - Schistocytes
+    - Sickle cells
+    - Spherocytes
+    - Stomatocytes
+    - Target cells
+    - Tear drop cells
+ RBC Inclusions:
+  groups:
+   - RBC morphology
+   - percent
+   - grade
+   - RBC inclusions
+   - derived
+  derived_from:
+   components:
+    - Basophilic stippling
+    - Howell-Jolly
+    - Pappenheimer
+    - Parasites
  Age:
   groups:
    - DemData
@@ -985,6 +1055,17 @@ variables:
    - RBC(10^6/uL)
   groups:
    - autoCBC
+ Total RBC:
+  aliases:
+   - totalRBC
+   - RBC Differential - Total number of cells counted
+  groups:
+   - derived
+ Total WBC:
+  aliases:
+   - total_differential_count
+  groups:
+   - derived
 
 
 Source fixes:  # to do: change script so as to have keys be tuples of site and method

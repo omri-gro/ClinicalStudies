@@ -242,10 +242,11 @@ def raw_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
                 return raw_id  # Preserve missing IDs
 
             # Extract trailing number (with optional leading zeros)
-            match = re.search(r"(\d+)$", str(raw_id))
+            match = re.search(r"(\d+(?:\.\d+)?)$", str(raw_id))
             if match:
-                numeric_part = match.group(1).lstrip("0") or "0"  # Preserve 0 if all zeros
-                return numeric_part
+                # numeric_part = match.group(1).lstrip("0") or "0"  # Preserve 0 if all zeros - delete this if the next line works for stripping 0s
+                numeric_part = match.group(1)
+                return str(int(float(numeric_part)))
             else:
                 print(f"\033[91mCould not parse SampleID: {raw_id}\033[0m")
                 return raw_id  # fallback: return raw
@@ -502,9 +503,9 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
 
     if not wbc_diff_vars:
         print(f"\033[91mNo {diff_cells} variables found in DataFrame.\033[0m")
-        return
+        return df
 
-    # Compute row-wise sums over di
+    # Compute row-wise sums over diff
 
     # Treat empty strings / pure whitespace as NaN before coercion
     raw = df[wbc_diff_vars].replace(r"^\s*$", np.nan, regex=True)
@@ -519,13 +520,13 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
     # If all values are non-numeric
     if numeric_view.notna().sum().sum() == 0:
         print("WARNING: All values in selected columns are non-numeric. Nothing to sum.")
-        return None, df.index, numeric_view
+        return df, df.index, numeric_view
     # Print problematic rows
     if not offending_idx.empty:
         print("Dropping rows with non-numeric values (showing first 5):")
         print(raw.loc[offending_idx].head(5))
     # Keep safe rows only
-    df = raw.loc[~offending_rows]
+    df = df.loc[~offending_rows]
 
     # Compute row-wise sum of WBC diff variables
     wbc_sum = df[wbc_diff_vars].sum(axis=1, skipna=True)
@@ -824,9 +825,14 @@ def create_derived_variables_long(df, metadata):
 
         # Filter to component rows
         comp_df = df[df["Variable"].isin(components)].copy()
+        if len(comp_df) == 0:
+            print(f'Dataframe does not include any of {components}. The derived variable {derived_var} will not be calculated.')
+            continue
+        comp_df["Value"] = pd.to_numeric(comp_df["Value"], errors='raise')
 
         # Group by sample and site identifiers
         group_cols = [col for col in possible_group_cols if col in df.columns]
+
         aggregated = comp_df.groupby(group_cols, dropna=False).agg({"Value": operation})
 
         # Build derived rows
@@ -931,6 +937,7 @@ def to_comparison_matrix(
     wide.index.names = list(present_identifiers)
 
     # --- enforce complete cases if requested (ensure true ‘used’ datapoints only) ---
+    # to do: correct require_complete_cases so it requires data in all methods (getting nans in all columns of a single method is enough for dropping) - for simplicity, use a single column that must exist in all methods and sites for this filtering
     if require_complete_cases:
         # drop rows with any missing across all comparison cells
         if isinstance(wide.columns, pd.MultiIndex):
@@ -973,7 +980,7 @@ def to_comparison_matrix(
         wide.columns = [sep.join(map(str, col)).strip(sep) for col in wide.columns]
         wide.columns = pd.Index(wide.columns, name=sep.join(present_comp_dims))
 
-    return wide
+    return wide.reset_index()
 
 
 """Statistical tools"""
@@ -1083,7 +1090,7 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
 
     # print warning if WBCs in differential don't add up to ~100
     # need to reach decision if this should be df = check_diff_sum instead when organizing functions
-    check_diff_sum(df, metadata, tolerance=5)
+    df = check_diff_sum(df, metadata, tolerance=5)
 
     df = pivot_long(df, id_vars=id_vars)
     df = add_grade_column(df, metadata)
