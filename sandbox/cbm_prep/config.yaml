@@ -268,7 +268,7 @@ variables:
    - Smudge cell
    - Smudge Cells
    - Smudge cells
-   - Smudge Cells*
+   - Smudge Cells* 
    - smudge cell
    - smudge_cell_percentage
   groups:
@@ -919,10 +919,10 @@ variables:
     -  Atypical Lymphocyte
  EllipOval:
   groups:
-   - RBC morphology
    - percent
    - grade
    - RBC shape
+   - RBC combinations
    - derived
   derived_from:
    components:
@@ -934,10 +934,10 @@ variables:
   grades: [0, 2, 3]
  AcanoEchino:
   groups:
-   - RBC morphology
    - percent
    - grade
    - RBC shape
+   - RBC combinations
    - derived
   derived_from:
    components:
@@ -961,12 +961,19 @@ variables:
   normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
+ Helmet&Schisto:
+  groups:
+   - RBC combinations
+   - derived
+  derived_from:
+   components:
+    - Schistocytes
+    - Helmet cells
  RBC Shape:
   groups:
-   - RBC morphology
    - percent
    - grade
-   - RBC shape
+   - RBC combinations
    - derived
   derived_from:
    components:
@@ -987,10 +994,9 @@ variables:
     - Tear drop cells
  RBC Inclusions:
   groups:
-   - RBC morphology
    - percent
    - grade
-   - RBC inclusions
+   - RBC combinations
    - derived
   derived_from:
    components:

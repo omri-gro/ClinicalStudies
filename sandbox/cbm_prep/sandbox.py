@@ -902,6 +902,7 @@ def to_comparison_matrix(
         on_duplicates: str = "error",
         sort_by: Optional[Sequence[str]] = None,   # e.g., ["ReviewDate","Investigator"]
         ascending: Union[bool, Sequence[bool]] = True,
+        **kwargs
 ) -> pd.DataFrame:
     """
         Build and save a wide, readable matrix of only the datapoints actually used in comparisons.
@@ -1094,7 +1095,8 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
 
     df = pivot_long(df, id_vars=id_vars)
     df = add_grade_column(df, metadata)
-    df = df.dropna(subset=["SampleID", "Value"])
+    df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
+    df = df.dropna(subset=["SampleID"])  # drop when no readable SampleID
 
     # calculate derived variables (e.g., Variant Lymphocytes)
     df = create_derived_variables_long(df, metadata)

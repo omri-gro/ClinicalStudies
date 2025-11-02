@@ -23,16 +23,19 @@ if __name__ == "__main__":
     # srcs = {(site, 'CBM'): f'{site}_CBM.csv'}
 
     methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison')
-    vars_to_test = metadata.variable_groups['RBC morphology'] + metadata.variable_groups['PLT morphology']
-    methd_comp.batch_fit(['ClV'], ['CBM'], vars_to_test)
-    methd_comp.batch_fit(['ClV'], ['CBM'], vars_to_test, site_filters=['TASMC', 'BWH'])
+    vars_to_test = metadata.variable_groups['RBC morphology']
+    # methd_comp.batch_fit(['ClV'], ['CBM'], vars_to_test)
+    # methd_comp.batch_fit(['ClV'], ['CBM'], vars_to_test, site_filters=['TASMC', 'BWH'])
+    #
+    # methd_comp.save_results(rf'results/{save_name}_reg.csv')
+    # methd_comp.plot_all_regressions(f'results/{save_name}_reg.pdf')
 
-    methd_comp.save_results(rf'results/{save_name}_reg.csv')
-    methd_comp.plot_all_regressions(f'results/{save_name}_reg.pdf')
+    # comp_mtrx = methd_comp.export_comparison_matrix(out_path=f'comp_tables/{save_name}.csv',
+    #                                                 comparison_dims=("Variable", "Method"),
+    #                                                 needed_vars=vars_to_test)
 
     comp_mtrx = methd_comp.export_comparison_matrix(out_path=f'comp_tables/{save_name}.csv',
                                                     comparison_dims=("Variable", "Method"),
-                                                    needed_vars=vars_to_test)
-
-
+                                                    needed_vals=vars_to_test,
+                                                    needed_grades=['scan_id'])
 

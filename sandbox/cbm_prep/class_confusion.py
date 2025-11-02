@@ -6,6 +6,38 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sandbox import MetadataBundle
 
+
+def symmetric_magnitude_score(res1, res2):
+    # Drop rows with NaNs
+    valid = pd.concat([res1, res2], axis=1).dropna()
+    a = valid.iloc[:, 0]
+    b = valid.iloc[:, 1]
+
+    # Only consider cases where residuals have opposite signs
+    mask = (a * b) < 0
+    if mask.sum() == 0:
+        return np.nan
+
+    # Compute normalized absolute magnitude difference
+    abs_diff = np.abs(np.abs(a) - np.abs(b))
+    avg_mag = np.abs(a) + np.abs(b)
+    return 1 - np.mean(abs_diff / avg_mag)
+
+
+def residuals_correlations(raw, vars_to_test, ref=" REF", test=" TEST"):
+    """
+    Args:
+        raw (pd.DataFrame): Dataframe with pairs of numerical columns, each having naming format of {variable}{ref or test}
+        vars_to_test (list): List of variables to cross-correlate
+        ref (str, optional): Suffix for column names
+        test (str, optional): Suffix for column names
+    Returns:
+        dict with 4 dataframes:
+        corrs - , pvals, tvals, symmetry)
+
+    """
+
+
 if __name__ == "__main__":
     site = 'TASMC'
     triangle_matrix = False
@@ -48,12 +80,15 @@ if __name__ == "__main__":
     cls_pairs = list(combinations(common_classes, 2))
     correlations = {}
     p_vals = {}
+    magnitude_symmetry_scores = {}
     mean_residual_matrix = pd.DataFrame(np.nan, index=common_classes, columns=common_classes)
 
     for cls1, cls2 in cls_pairs:
         valid_rows = residuals[[cls1, cls2]].dropna()
+        res1 = valid_rows[cls1]
+        res2 = valid_rows[cls2]
         if len(valid_rows) > 2:
-            corr, p_val = pearsonr(valid_rows[cls1], valid_rows[cls2])
+            corr, p_val = pearsonr(res1, res2)
             correlations[(cls1, cls2)] = corr
             p_vals[(cls1, cls2)] = p_val
         else:
@@ -61,9 +96,19 @@ if __name__ == "__main__":
             p_vals[(cls1, cls2)] = np.nan
         # Also calculate mean residual difference
         if len(valid_rows) > 0:
-            mean_residual_diff = valid_rows[cls1].mean() - valid_rows[cls2].mean()
+            mean_residual_diff = res1.mean() - res2.mean()
             mean_residual_matrix.loc[cls1, cls2] = mean_residual_diff
             mean_residual_matrix.loc[cls2, cls1] = -mean_residual_diff
+
+    # Magnitude symmetry score (based on residuals of opposite signs)
+    opposite_sign = (res1 * res2) < 0
+    if opposite_sign.any():
+        abs_diff = np.abs(np.abs(res1[opposite_sign]) - np.abs(res2[opposite_sign]))
+        avg_mag = np.abs(res1[opposite_sign]) + np.abs(res2[opposite_sign])
+        symmetry_score = 1 - (abs_diff / avg_mag).mean()
+        magnitude_symmetry_scores[(cls1, cls2)] = symmetry_score
+    else:
+        magnitude_symmetry_scores[(cls1, cls2)] = np.nan
 
     # organize as df
     corrs_df = pd.DataFrame.from_dict(correlations, orient='index', columns=['Correlations'])

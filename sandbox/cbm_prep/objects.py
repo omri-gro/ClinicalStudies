@@ -143,7 +143,24 @@ class MethodComparator:
         pass
 
     def export_comparison_matrix(self, out_path=None, **kwargs) -> pd.DataFrame:
-        wide_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **kwargs)
+        # user can include needed_vals both and needed_grades (both need to be Iterable[str]),
+        # to ask for values for some variables and grades for others
+        if 'needed_vals' in kwargs and 'needed_grades' in kwargs:
+            # create kwargs for needed values
+            val_kwargs = kwargs
+            val_kwargs.update({'needed_vars': kwargs["needed_vals"], 'value_col': "Value"})
+            val_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **val_kwargs)
+
+            # create kwargs for needed values
+            grade_kwargs = kwargs
+            grade_kwargs.update({'needed_vars': kwargs["needed_grades"], 'value_col': "Grade"})
+            grade_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **grade_kwargs)
+
+            row_identifiers = kwargs.get('row_identifiers', ("SampleID", "Site"))
+            wide_df = pd.merge(val_df, grade_df, on=row_identifiers, how='outer')
+        else:
+            wide_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **kwargs)
+
         if out_path:
             sb.write_df_to_file(wide_df, out_path)
         return wide_df
