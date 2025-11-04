@@ -33,7 +33,7 @@ def residuals_correlations(raw, vars_to_test, ref=" REF", test=" TEST"):
         test (str, optional): Suffix for column names
     Returns:
         dict with 4 dataframes:
-        corrs - , pvals, tvals, symmetry)
+        corrs, pvals, tvals, symmetry)
 
     """
 

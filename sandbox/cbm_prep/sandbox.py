@@ -21,7 +21,8 @@ class MetadataBundle:  # to do: add attribute for thresholds & grades?
         self.variables = context.get("variables", {})
         self.alias_map = self.build_alias_map(self.variables)  # not the standard way of creating variables, could have just defined self.alias_map within the function
         self.variable_groups = self.build_variable_groups(self.variables)
-        self.crit_points = self.build_crit_points(self.variables)  # to do: add functionality where critical points are defined by grading thresholds if one is provided and the other isn't.
+        self.crit_points = self.build_lists_map(self.variables, keyword="crit_points")  # to do: add functionality where critical points are defined by grading thresholds if one is provided and the other isn't.
+        self.normal_ranges = self.build_lists_map(self.variables, keyword="normal_range")  # notice this currently doesn't directly require exactly 2 values in normal_range
         self.grading_specs = self.building_grading_specs(self.variables)
 
         self.src_fixes = self.build_src_fixes(context)
@@ -47,13 +48,13 @@ class MetadataBundle:  # to do: add attribute for thresholds & grades?
                 group_map.setdefault(group, []).append(var)
         return group_map
 
-    def build_crit_points(self, variables):
+    def build_lists_map(self, variables, keyword):
         """
-        Create dictionary of quantitative variables and lists of critical points.
+        Create dictionary of all variables where the keyword holds a list (of critical points, ranges, etc.)
         """
         points_map = {}
         for var, props in variables.items():
-            crit_points = props.get("crit_points")
+            crit_points = props.get(keyword)
             if isinstance(crit_points, list):
                 points_map[var] = crit_points
         return points_map
@@ -140,6 +141,15 @@ def _as_df(obj_or_df) -> pd.DataFrame:
         return obj_or_df.copy()
     raise TypeError("Expected a MethodComparator or a pandas DataFrame.")
 
+
+def ensure_list(x):
+    """If argument is a tuple, convert to list.
+    If argument is anything else but a list, return list containing that one object."""
+    if isinstance(x, tuple):
+        return list(x)
+    else:
+        return x if isinstance(x, list) else [x]
+
 def _round_df(df: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
     out = df.copy()
     if isinstance(decimals, int):
@@ -202,6 +212,10 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
         file_dir = os.path.abspath(os.path.dirname(__file__))
         file_dir = os.path.join(file_dir, r'raw')
     filepath = os.path.join(file_dir, file_name)
+    if not os.path.exists(filepath):
+        filepath = file_name
+    elif not os.path.exists(filepath):
+        raise FileNotFoundError(f"\033[91mFailed to find {file_name}: {e}\033[0m")
     _, ext = os.path.splitext(filepath)
     ext = ext.lower()
     try:
@@ -224,7 +238,7 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
     return df
 
 
-def raw_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
+def raw_to_df(file_name, site=None, method=None, sheet_name='Sheet1', dir=None):
     def standardize_sample_ids(df, id_col="SampleID"):
         """
         Normalize sample IDs by removing site prefixes and leading zeros.
@@ -280,8 +294,10 @@ def raw_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
     df = standardize_sample_ids(df, id_col="SampleID")
 
     # Add metadata columns
-    df["Site"] = site
-    df["Method"] = method
+    if isinstance(site, str):
+        df["Site"] = site
+    if isinstance(method, str):
+        df["Method"] = method
     df["FileName"] = os.path.basename(file_name)
 
     # Strip leading/trailing spaces from column names
@@ -711,6 +727,45 @@ def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle"):
     return df
 
 
+def add_pos_column(df_long: pd.DataFrame, meta: "MetadataBundle",
+                   normal_grades=[0, "0", "Normal", "Negative", "normal", "negative"]):
+    """
+    Adds boolean column for positivity based on normal ranges in MetaDataBundle.
+    If grade already exists, treat values in normal_vals as False (negative) and rest as True,
+    Else use normal ranges and the "Value" column if possible.
+    """
+    # create empty boolean column
+    df = df_long.copy()
+    df["Positive"] = np.nan
+    df["Positive"] = df["Positive"].astype('boolean')
+
+    # where grade exists, use it for positivity  -  this section might need changing if grade ever not related to positivity
+    grade_negative = df["Grade"].isin(normal_grades)
+    grade_positive = df["Grade"].notna() & ~df["Grade"].isin(normal_grades)
+    df.loc[grade_negative, "Positive"] = False
+    df.loc[grade_positive, "Positive"] = True
+
+    # find values where positivity will be based on normal ranges
+    value_num = pd.to_numeric(df["Value"], errors="coerce")
+    numeric = value_num.notna()
+    normal_ranges = getattr(meta, "normal_ranges", {})
+    norm_range_vars = set(normal_ranges.keys())
+    need_convert = df["Positive"].isna() & numeric & df["Variable"].isin(norm_range_vars)
+
+    # convert based on normal ranges
+    if need_convert.any():
+        for var in sorted(norm_range_vars):
+            mv = need_convert & df["Variable"].eq(var)
+            if not mv.any():
+                continue
+            norm_range = normal_ranges[var]
+            if len(norm_range) == 2:
+                df.loc[mv, "Positive"] = ~df.loc[mv, "Value"].between(norm_range[0], norm_range[1], inclusive="both")
+            else:
+                print(f'{norm_range} is not an appropriate normal range for {var}')
+    return df
+
+
 def cut_series_to_categorical(x: pd.Series,
                               thresholds,
                               grades,
@@ -894,7 +949,7 @@ def to_comparison_matrix(
         needed_vars: Optional[Iterable[str]] = None,   # if None and metadata provided, pull from metadata.variable_groups['percent']
         require_complete_cases: bool = True,           # only keep rows where all comparison cells are present (no NaNs)
         drop_na_mode: str = "all",  # or "any" if even a single NaN is enough to drop
-        decimals: int = 2,   # will attempt to round any output column possible. Change to non-integer to avoid rounding.
+        decimals: int = 3,   # will attempt to round any output column possible. Change to non-integer to avoid rounding.
         column_order: Optional[Sequence[Sequence]] = None,  # e.g., [list_of_methods, list_of_investigators]; order applied where dims exist
         flatten_columns: bool = True,  # flatten MultiIndex columns like ('MethodA','Inv1') -> "MethodA|Inv1"
         sep: str = "|",  # for column name flattening
@@ -914,7 +969,7 @@ def to_comparison_matrix(
     # --- choose variables ---
     if needed_vars is None and metadata is not None:
         # future adjustment - change tuple to order of preference on variables group names
-        for key in ("Evaluation parameter", "percent"):
+        for key in ("Evaluation parameter", "percent"):  # future adjustment - provide choice of non-percent if value_col=Grade or specifically requested
             if getattr(metadata, "variable_groups", None) and key in metadata.variable_groups:
                 needed_vars = metadata.variable_groups[key]
                 break
@@ -1095,6 +1150,7 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
 
     df = pivot_long(df, id_vars=id_vars)
     df = add_grade_column(df, metadata)
+    df = add_pos_column(df, metadata)
     df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
     df = df.dropna(subset=["SampleID"])  # drop when no readable SampleID
 
@@ -1159,6 +1215,7 @@ def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', di
         check_diff_sum(df, metadata, tolerance=5, diff_cells="NDC")
     df = pivot_long(df, id_vars=id_vars)
     df = add_grade_column(df, metadata)
+    df = add_pos_column(df, metadata)
     df = df.dropna(subset=["Value", "Grade"], how="all")
 
     # calculate derived variables (e.g., Variant Lymphocytes)

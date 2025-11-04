@@ -2,7 +2,8 @@
 
 import sandbox as sb
 import pandas as pd
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Union, Sequence
+from pathlib import Path
 from itertools import product
 import os
 import numpy as np
@@ -94,7 +95,10 @@ class MethodComparator:
         """
         self.df = df.copy()
         self.measurement_col = measurement_col  # currently not used
-        self.results = {}  # stores regression results by (ref, test, variable, site)
+        # stores regression results by (ref, test, variable, site)
+        self.results = {}
+        # stores qualitative and semi-quantitative metrics (sensitivity, kappa, etc.) by (ref, test, variable, site)
+        self.metrics = {}
 
     @classmethod
     def from_paths_dict(cls, paths: dict, metadata: sb.MetadataBundle, dir=None, measurement_col='Value',
@@ -141,6 +145,38 @@ class MethodComparator:
         # to do: goes through all sheets in an excel, read each into a df, prepare, concatenate and convert to MethodComparator
         # need to decide on how to specify site/method/investigator
         pass
+
+    """ Methods creating new MethodComparators from existing ones"""
+    def filter_by_df(self,
+                     filtering_source: Union[str, Path, pd.DataFrame],
+                     filtering_cols: Optional[Sequence[str]] = None,
+                     include_rows=False):
+        """
+        Using a dataframe of samples to exclude/include (or a file containing one), create new MethodComparator only without/with those rows.
+        filtering_cols - Sequence of column names to use for filtering (e.g., ['Site', 'SampleID', 'Investigator', 'Method']),
+                         else infer from the filtering df.
+        include_rows - Change to True so resulting df will have only samples included in the filtering_source, instead of those that don't.
+        """
+        df2 = filtering_source if isinstance(filtering_source, pd.DataFrame) else sb.raw_to_df(filtering_source)
+        if not filtering_cols:
+            filtering_cols = set(df2.columns)
+            # if want to use "FileName" as one of filtering columns, define filtering_cols directly and use DataFrame for filtering_source
+            filtering_cols.discard("FileName")
+
+        df1 = self.df.copy()
+        common = list(set(df1.columns) & filtering_cols)  # columns existing in both
+
+        df1_com = df1[common]
+        df2_com = df2[common]
+
+        # Build a set-like MultiIndex of unique df2 keys, test membership for df1
+        keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())
+        mask = pd.MultiIndex.from_frame(df1_com).isin(keys_df2)  # samples appearing in both are in True
+        mask = ~mask if not include_rows else mask
+        out_df = df1.loc[mask].copy()
+
+        # return a new MethodComparator with filtered rows
+        return MethodComparator(out_df, self.measurement_col)
 
     def export_comparison_matrix(self, out_path=None, **kwargs) -> pd.DataFrame:
         # user can include needed_vals both and needed_grades (both need to be Iterable[str]),
@@ -264,13 +300,9 @@ class MethodComparator:
             measurement_col="Value"):
         """Run regression for one variable/site/method pair."""
 
-        def ensure_list(x):  # might want to turn into general utility are part of more general function with 'product'
-            """If argument is a string, function return list with x as its only item"""
-            return [x] if isinstance(x, str) else x
-
         x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter, measurement_col=measurement_col, on_duplicates="first")
 
-        site_filter = ensure_list(site_filter)
+        site_filter = sb.ensure_list(site_filter)
 
         # placeholder regression_func → replace with your real implementation
         stats = reg.regression_comp(x, y, reg_method=model)  # placeholder - replace later with different regression functions
@@ -295,17 +327,11 @@ class MethodComparator:
     def batch_fit(self, ref_methods, test_methods, variables, site_filters=None, model="deming", measurement_col="Value"):
         """Run regression across many combinations of methods, variables and sites in one call."""
         # currently ref_methods, test_methods, variables should be lists, consider option to allow strings as well
-        def ensure_list(x):  # might want to turn into general utility are part of more general function with 'product'
-            """If argument is a string, function return list with x as its only item"""
-            return [x] if isinstance(x, str) else x
 
-        if site_filters is None:
-            site_filters = [None]
-
-        ref_methods = ensure_list(ref_methods)
-        test_methods = ensure_list(test_methods)
-        variables = ensure_list(variables)
-        site_filters = ensure_list(site_filters)   # to do: figure out how to pass the site_filters correctly when sometimes list works and sometimes it end up as list of lists
+        ref_methods = sb.ensure_list(ref_methods)
+        test_methods = sb.ensure_list(test_methods)
+        variables = sb.ensure_list(variables)
+        site_filters = sb.ensure_list(site_filters)
 
         for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
             if ref == test:
@@ -314,6 +340,33 @@ class MethodComparator:
                 self.fit(ref, test, var, site_filter=sites, model=model, measurement_col=measurement_col)
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
+
+    def batch_compare(self, ref_methods, test_methods, variables,
+                      function='Regression', site_filters=None, **kwargs):
+        """Run comparison calculation across many combinations of methods, variables and sites in one call.
+        ref_methods, test_methods, variables, site_filters - str, list or None
+        function - 'deming',
+        kwargs - sent to calculating function (model, measurement, etc.)
+        """
+        # if iterated arguments are str or None, convert to list
+        ref_methods = sb.ensure_list(ref_methods)
+        test_methods = sb.ensure_list(test_methods)
+        variables = sb.ensure_list(variables)
+        site_filters = sb.ensure_list(site_filters)
+
+        for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
+            if ref == test:
+                continue
+            try:
+                if function == 'regression':   # consider using register decorator if many functions
+                    self.fit(ref, test, var, site_filter=sites, **kwargs)
+                elif function == 'binary':
+                    continue
+            except Exception as e:
+                print(f"Skipping {function} calculation for {var} ({ref} vs {test}, {sites}): {e}")
+
+
+
 
     def calc_all_biases(self, crit_points_dict):
         """

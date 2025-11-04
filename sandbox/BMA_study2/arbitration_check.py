@@ -2,10 +2,11 @@ import pandas as pd
 
 if __name__ == "__main__":
     mthd = 'REF'  # for test, remember to change name of 'Total' raw to 'Total nucleated cells'
-    site = 'BWH'
+    site = 'HUP'
 
     investigators = {'Wei Xie': 'User1', 'Todd Williams': 'User2',
-                     'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User3', 'Sam Sadigh': 'User4'}
+                     'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User3', 'Sam Sadigh': 'User4',
+                     'DL': 'User1', 'AB': 'User2', 'AS': 'User2'}
 
     # investigators = {'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User1', 'Sam Sadigh': 'User2'}
 

@@ -32,6 +32,6 @@ if __name__ == "__main__":
                                         comparison_dims=("Variable", "Method"),
                                         needed_vars=vars_to_test)
 
-    methd_comp.batch_fit(['OMR'], ['old CBM', 'new CBM'], vars_to_test, site_filters=site)
+    methd_comp.batch_fit('OMR', ['old CBM', 'new CBM'], vars_to_test)
     methd_comp.save_results(rf'results/{analysis_name}_all_scans_reg.csv')
     methd_comp.plot_all_regressions(f'results/{analysis_name}_all_scans_reg.pdf')
