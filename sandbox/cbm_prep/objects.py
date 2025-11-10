@@ -286,7 +286,7 @@ class MethodComparator:
 
         x = pivoted[ref_method].values
         y = pivoted[test_method].values
-        ids = pivoted.index.get_level_values("SampleID").values
+        ids = pivoted.index.values  # add .get_level_values("SampleID") before .value to take only SampleIDs
         # To do: add an option for ids to include the site as well
 
         return x, y, ids
@@ -302,7 +302,8 @@ class MethodComparator:
 
         x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter, measurement_col=measurement_col, on_duplicates="first")
 
-        site_filter = sb.ensure_list(site_filter)
+        if site_filter:
+            site_filter = sb.ensure_list(site_filter)
 
         # placeholder regression_func → replace with your real implementation
         stats = reg.regression_comp(x, y, reg_method=model)  # placeholder - replace later with different regression functions
@@ -484,7 +485,8 @@ class MethodComparator:
         Parameters
         ----------
         pdf_path : str, optional
-            Output path for the PDF (e.g., 'all_regressions.pdf'). If empty that
+            Output path for the PDF (e.g., 'all_regressions.pdf').
+            to do - have option to leave empty so plots only shown.
         style : dict, optional
             Base style applied to all pages. Can include template strings like:
               title="Regression for {name}", xlabel="{x_label}", ylabel="{y_label}"

@@ -239,7 +239,7 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
 
 
 def raw_to_df(file_name, site=None, method=None, sheet_name='Sheet1', dir=None):
-    def standardize_sample_ids(df, id_col="SampleID"):
+    def standardize_sample_ids(df, id_col="SampleID", no_dup=True):
         """
         Normalize sample IDs by removing site prefixes and leading zeros.
 
@@ -268,9 +268,10 @@ def raw_to_df(file_name, site=None, method=None, sheet_name='Sheet1', dir=None):
         df[id_col] = df[id_col].apply(clean_id)
 
         # check for sampleIDs duplicates
-        duplicates = df["SampleID"][df["SampleID"].duplicated()]
-        if not duplicates.empty:
-            print(f"Duplicate SampleIDs after cleaning: {duplicates.unique()}")
+        if no_dup:
+            duplicates = df["SampleID"][df["SampleID"].duplicated()]
+            if not duplicates.empty:
+                print(f"Duplicate SampleIDs after cleaning: {duplicates.unique()}")
 
         df["SampleID"] = df["SampleID"].str.zfill(5)  # 45 → 00045
         return df
@@ -290,8 +291,21 @@ def raw_to_df(file_name, site=None, method=None, sheet_name='Sheet1', dir=None):
     # use appropriate ID standardization method according to study type
     # if 'Mast cell' in df.columns and df['SampleID'][0][-2].isalpha():
 
+    # If investigator/reviewer column exists, count number of investigators
+    possible_inv_cols = ["Investigator", "Reviewer", "Investigator's Name", "Reviewer's Name", "Reviewer's full name"]
+    inv_col = next((col for col in possible_inv_cols if col in df.columns), None)
+    if inv_col:
+        inv_str = ', '.join(df[inv_col].unique())
+        num_inv = df[inv_col].nunique()
+        print(f'{num_inv} investigators in dataframe: {inv_str}')
+        df.rename(columns={inv_col: "Investigator"}, inplace=True)
 
-    df = standardize_sample_ids(df, id_col="SampleID")
+    # removal of duplicates only if no investigator column (need to improve handling of investigator existence in main pipeline)
+    if inv_col:  # consider adding option for removing multiple rows with same SampleID and investigator
+        df = standardize_sample_ids(df, id_col="SampleID", no_dup=False)
+    else:
+        df = standardize_sample_ids(df, id_col="SampleID")
+
 
     # Add metadata columns
     if isinstance(site, str):

@@ -25,80 +25,56 @@ Plotting:
 1. Inter-user bars to datapoints
 """
 
-def add_pos_column(df_long: pd.DataFrame, meta: "MetadataBundle",
-                   normal_grades=[0, "0", "Normal", "Negative", "normal", "negative"]):
-    """
-    Adds boolean column for positivity based on normal ranges in MetaDataBundle.
-    If grade already exists, treat values in normal_vals as False (negative) and rest as True,
-    Else use normal ranges and the "Value" column if possible.
-    """
-    # create empty boolean column
-    df = df_long.copy()
-    df["Positive"] = np.nan
-    df["Positive"] = df["Positive"].astype('boolean')
-
-    # where grade exists, use it for positivity  -  this section might need changing if grade ever not related to positivity
-    grade_negative = df["Grade"].isin(normal_grades)
-    grade_positive = df["Grade"].notna() & ~df["Grade"].isin(normal_grades)
-    df.loc[grade_negative, "Positive"] = False
-    df.loc[grade_positive, "Positive"] = True
-
-    # find values where positivity will be based on normal ranges
-    value_num = pd.to_numeric(df["Value"], errors="coerce")
-    numeric = value_num.notna()
-    normal_ranges = getattr(meta, "normal_ranges", {})
-    norm_range_vars = set(normal_ranges.keys())
-    need_convert = df["Positive"].isna() & numeric & df["Variable"].isin(norm_range_vars)
-
-    # convert based on normal ranges
-    if need_convert.any():
-        for var in sorted(norm_range_vars):
-            mv = need_convert & df["Variable"].eq(var)
-            if not mv.any():
-                continue
-            norm_range = normal_ranges[var]
-            if len(norm_range) == 2:
-                df.loc[mv, "Positive"] = ~df.loc[mv, "Value"].between(norm_range[0], norm_range[1], inclusive="both")
-            else:
-                print(f'{norm_range} is not an appropriate normal range for {var}')
-    return df
-
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
-    use_omr = False
+    use_both_inv = True
+    use_bma = False
+    use_omr = True
     meta_path = r'config.yaml'
-    # save_name = 'all_sites_combined_omr_lym'
+    save_name = 'omr_cbm_sandbox'
     cur_dir = os.path.abspath(os.path.dirname(__file__))
 
     metadata = MetadataBundle(meta_path)
 
-    if use_omr:
+    if use_both_inv:
+        clv_raw_df = sb.raw_to_df('BWH_ClV_all_revs.csv', 'BWH', 'ClV', dir=r'raw/cbm_method_comparison')
+        df = sb.stnd_names(clv_raw_df, metadata.alias_map)
+        print(df)
+
+    elif use_bma:
+        pass
+    elif use_omr:
         # build list of files to read from
         sites = ['BWH', 'CPG', 'LMU', 'SYN', 'TASMC']
+        test_arm = 'CBM'
+        ref_arm = 'OMR'
         mthds = ['OMR', 'CBM']
         srcs = {(site, mthd): f'{site}_{mthd}.csv' for site, mthd in product(sites, mthds)}
         methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison')
     else:
+        sites = ['BWH', 'TASMC']
         srcs = {('TASMC', 'CBM'): f'TASMC_CBM.csv',
                 ('TASMC', 'ClV'): f'TASMC_ClV%.csv',
                 ('BWH', 'CBM'): f'BWH_CBM.csv',
                 ('BWH', 'ClV'): f'BWH_ClV%_means_decimal.csv'}
+        test_arm = 'CBM'
+        ref_arm = 'ClV'
         methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison')
 
     df = methd_comp.df
-    # df = add_pos_column(df, metadata)
 
     need_arb_path = r'C:\Users\omrig\Downloads\exclude_from_ClV.xlsx'
     # no_arb_meth_comp = methd_comp.filter_by_df(need_arb_path)
     # arb_meth_comp = methd_comp.filter_by_df(need_arb_path, include_rows=True)
+
+    # regression per site and regression overall, plotted
+    vars_to_test = 'Monocyte'  # can be string or list
+    methd_comp.batch_fit(ref_arm, test_arm, vars_to_test)
+    methd_comp.batch_fit(ref_arm, test_arm, vars_to_test, site_filters=sites)
+    methd_comp.plot_all_regressions(f'results/sandbox_results/{save_name}_reg.pdf')
+
+
 
 
 
