@@ -17,6 +17,7 @@ import reg_types as reg
 from dataclasses import dataclass, asdict
 from matplotlib.backends.backend_pdf import PdfPages
 import plotting
+from pipelines import medium_pipe, bma_prep_pipeline
 
 
 @dataclass
@@ -130,9 +131,9 @@ class MethodComparator:
                 else:
                     site = method = reviewer = None
                 if bma:
-                    df = sb.bma_prep_pipeline(path, site, method, metadata, dir=dir, id_vars=id_vars)
+                    df = bma_prep_pipeline(path, site, method, metadata, dir=dir, id_vars=id_vars)
                 else:
-                    df = sb.medium_pipe(path, site, method, metadata, dir=dir, id_vars=id_vars, stnrd_id=stnrd_id)
+                    df = medium_pipe(path, site, method, metadata, dir=dir, id_vars=id_vars, stnrd_id=stnrd_id)
                 df_srcs_list.append(df)
             except Exception as e:
                 print(f'\033[91mError when importing {key}: {e}\033[0m')
@@ -200,6 +201,46 @@ class MethodComparator:
         if out_path:
             sb.write_df_to_file(wide_df, out_path)
         return wide_df
+
+    def apply_to_df(self, function: str, *args, inplace=False, **kwargs):
+        # still needs testing, use 'Pythonic method delegation' for improvements
+        """
+        Apply a DataFrame method to self.df by name.
+
+        Parameters
+        ----------
+        function : str
+            Name of the DataFrame method to call (e.g., 'query', 'dropna', 'assign').
+        *args, **kwargs :
+            Arguments to pass to the DataFrame method.
+        inplace : bool, optional (default=False)
+            If True, modify the internal DataFrame and return self.
+            If False, return a new MethodComparator with the modified DataFrame.
+
+        Returns
+        -------
+        MethodComparator or other
+            If the called method returns a DataFrame and inplace=False,
+            returns a new MethodComparator. Otherwise returns the raw result.
+        """
+        # Get the DataFrame method dynamically
+        method = getattr(self.df, function, None)
+        if method is None or not callable(method):
+            raise AttributeError(f"DataFrame has no method '{function}'")
+
+        # Apply the method
+        result = method(*args, **kwargs)
+
+        # Handle return type
+        if isinstance(result, pd.DataFrame):
+            if inplace:
+                self.df = result
+                return self
+            else:
+                return MethodComparator(result)
+        else:
+            # For Series, scalars, or other objects — just return as-is
+            return result
 
     def _prepare_arrays(
         self,
@@ -538,7 +579,7 @@ if __name__ == "__main__":
     mnl_df_raw = sb.raw_to_df('BWH_manual%.csv', site, 'Manual', dir=raw_dir)
     cbm_df_raw = sb.raw_to_df(f'BWH_CBM%{suffix}.csv', site, 'CBM', dir=raw_dir)
 
-    clv_df = sb.short_pipe(clv_df_raw, metadata)
+    clv_df = sb.short_pipe(clv_df_raw, metadata)  # short_pipe moved to pipelines.py
     mnl_df = sb.short_pipe(mnl_df_raw, metadata)
     cbm_df = sb.short_pipe(cbm_df_raw, metadata)
 

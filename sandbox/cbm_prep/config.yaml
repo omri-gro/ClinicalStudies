@@ -267,8 +267,7 @@ variables:
   aliases:
    - Smudge cell
    - Smudge Cells
-   - Smudge cells
-   - Smudge Cells* 
+   - Smudge Cells*
    - smudge cell
    - smudge_cell_percentage
   groups:
@@ -387,7 +386,7 @@ variables:
    - giant_platelets_percentage
   groups:
    - PLT morphology
-   - density
+   - percent
    - grade
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
@@ -404,7 +403,7 @@ variables:
    - large_platelets_percentage
   groups:
    - PLT morphology
-   - density
+   - percent
    - grade
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
@@ -421,7 +420,7 @@ variables:
    - Agranular platelets
   groups:
    - PLT morphology
-   - density
+   - percent
    - grade
   crit_points: [0, 2, 5]
   normal_range: [0, 2]
@@ -1004,6 +1003,23 @@ variables:
     - Howell-Jolly
     - Pappenheimer
     - Parasites
+ TotalWBC:
+  groups:
+   - TotalCount
+ TotalRBC:
+  aliases:
+   - Total RBC count
+   - Red Blood Cell Count - Total number of RBCs counted
+   - RBC Differential - Total number of cells counted
+  groups:
+   - TotalCount
+ TotalPLT:
+  aliases:
+   - Total platelet count
+   - Platelet Count - Total number of PLTs counted
+   - Platelet Count - Total number of platelets counted
+  groups:
+   - TotalCount
  Age:
   groups:
    - DemData

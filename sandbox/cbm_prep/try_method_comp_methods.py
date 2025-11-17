@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Union, Iterable, Optional, Sequence
+from pipelines import clv_pipe, medium_pipe
 
 
 """
@@ -25,23 +26,33 @@ Plotting:
 1. Inter-user bars to datapoints
 """
 
-
-
 if __name__ == "__main__":
     use_both_inv = True
     use_bma = False
     use_omr = True
     meta_path = r'config.yaml'
-    save_name = 'omr_cbm_sandbox'
+    save_name = 'clv_cbm_both_inv'
     cur_dir = os.path.abspath(os.path.dirname(__file__))
 
     metadata = MetadataBundle(meta_path)
 
     if use_both_inv:
-        clv_raw_df = sb.raw_to_df('BWH_ClV_all_revs.csv', 'BWH', 'ClV', dir=r'raw/cbm_method_comparison')
-        df = sb.stnd_names(clv_raw_df, metadata.alias_map)
-        print(df)
+        test_arm = 'CBM'
+        ref_arm = 'ClV'
+        sites = ['BWH', 'TASMC']
+        id_vars_clv = ["SampleID", "Site", "Method", "FileName", 'Investigator']
+        id_vars_cbm = ["SampleID", "Site", "Method", "FileName"]
+        df_srcs_list = []
+        for site in sites:   # this could be used as framework for new pipeline
+            df = clv_pipe(f'{site}_ClV_all_revs.csv', site, metadata, dir=r'raw/cbm_method_comparison', only_mean=False)
+            df_srcs_list.append(df)
 
+            df = medium_pipe(f'{site}_CBM.csv', site, 'CBM', metadata, dir=r'raw/cbm_method_comparison', id_vars=id_vars_cbm)
+            df["Investigator"] = "CBM"
+            df_srcs_list.append(df)
+
+        all_dfs = pd.concat(df_srcs_list)
+        methd_comp = MethodComparator(all_dfs)
     elif use_bma:
         pass
     elif use_omr:
@@ -62,21 +73,24 @@ if __name__ == "__main__":
         ref_arm = 'ClV'
         methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison')
 
-    df = methd_comp.df
 
     need_arb_path = r'C:\Users\omrig\Downloads\exclude_from_ClV.xlsx'
-    # no_arb_meth_comp = methd_comp.filter_by_df(need_arb_path)
-    # arb_meth_comp = methd_comp.filter_by_df(need_arb_path, include_rows=True)
+    methd_comp = methd_comp.filter_by_df(need_arb_path)
+    vars_to_test = metadata.variable_groups['RBC morphology'] + metadata.variable_groups['PLT morphology'] + metadata.variable_groups['RBC combinations']
 
-    # regression per site and regression overall, plotted
-    vars_to_test = 'Monocyte'  # can be string or list
+
+
+    methd_comp.export_comparison_matrix(out_path=fr'comp_tables/{save_name}.csv',
+                                        row_identifiers=["SampleID", "Site"],
+                                        needed_vals=vars_to_test,
+                                        needed_grades=["scan_id"])
+
+
+
     methd_comp.batch_fit(ref_arm, test_arm, vars_to_test)
-    methd_comp.batch_fit(ref_arm, test_arm, vars_to_test, site_filters=sites)
-    methd_comp.plot_all_regressions(f'results/sandbox_results/{save_name}_reg.pdf')
 
-
-
-
+    methd_comp.save_results(rf'results/{save_name}_all_scans_reg.csv')
+    methd_comp.plot_all_regressions(f'results/{save_name}_all_scans_reg.pdf')
 
 
 

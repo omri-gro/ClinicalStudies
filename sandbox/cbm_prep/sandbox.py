@@ -142,7 +142,7 @@ def _as_df(obj_or_df) -> pd.DataFrame:
     raise TypeError("Expected a MethodComparator or a pandas DataFrame.")
 
 
-def ensure_list(x):
+def _ensure_list(x):
     """If argument is a tuple, convert to list.
     If argument is anything else but a list, return list containing that one object."""
     if isinstance(x, tuple):
@@ -162,6 +162,42 @@ def _round_df(df: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
         print(f'{decimals} not integer. Rounding not performed.')
     return out
 
+
+def robust_dup(
+        df: pd.DataFrame,
+        key_cols: Sequence[str],
+        on_duplicates: str = "error"  # "error" | "first" | "last" | "mean" | "median" | "sum" | "count" | "any" | "all"
+) -> pd.DataFrame:
+    """
+    If duplicates exist according to key_cols, resolves them per on_duplicates.
+    Notice functionality previously covered by aggfunc in pandas' pivot_table not added yet.
+    """
+    dup_mask = df.duplicated(subset=key_cols, keep=False)
+
+    if not dup_mask.any():
+        return df
+
+    sort_col = ["Variable", "SampleID"] if "Variable" in df.columns and "SampleID" in df.columns else "n"
+    dup_keys = (
+        df.loc[dup_mask, key_cols]
+        .value_counts()
+        .rename("n")
+        .reset_index()
+        .sort_values(sort_col, ascending=False)
+    )
+
+    dup_report_str = "Duplicate entries found for pivot keys.\n" \
+                     f"Examples:\n{dup_keys.head(5).to_string(index=False)}"
+
+    if on_duplicates == "error":
+        raise ValueError(dup_report_str)
+    else:
+        print(dup_report_str)
+
+    if on_duplicates in {"first", "last"}:  # to do - add option for 'none' using keep=True in drop_duplicates
+        return df.drop_duplicates(subset=key_cols, keep=on_duplicates)
+
+
 def safe_pivot(
         df: pd.DataFrame,
         index: Sequence[str],
@@ -177,8 +213,13 @@ def safe_pivot(
 
     # duplicate probe
     key_cols = list(index) + list(columns)
+
+    post_dup_df = robust_dup(df, key_cols, on_duplicates)
+
+    """
     dup_mask = df.duplicated(subset=key_cols, keep=False)
 
+    # replace this section with the new robust_dup function
     if not dup_mask.any():
         return df.pivot(index=index, columns=columns, values=values)
 
@@ -204,9 +245,15 @@ def safe_pivot(
         return dedup.pivot(index=index, columns=columns, values=values)
 
     return df.pivot_table(index=index, columns=columns, values=values, aggfunc=on_duplicates, observed=True)
+    """
+    if on_duplicates in {"error", "first", "last"}:
+        return post_dup_df.pivot(index=index, columns=columns, values=values)
+    else:
+        return post_dup_df.pivot_table(index=index, columns=columns, values=values, aggfunc=on_duplicates, observed=True)
+
 
 """Data import and preparation tools"""
-def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
+def read_to_df(file_name, sheet_name='Sheet1', file_dir=None, **kwargs):
     if file_dir == None:
         # dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
         file_dir = os.path.abspath(os.path.dirname(__file__))
@@ -215,15 +262,15 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
     if not os.path.exists(filepath):
         filepath = file_name
     elif not os.path.exists(filepath):
-        raise FileNotFoundError(f"\033[91mFailed to find {file_name}: {e}\033[0m")
+        raise FileNotFoundError(f"\033[91mFailed to find {file_name}\033[0m")
     _, ext = os.path.splitext(filepath)
     ext = ext.lower()
     try:
         if ext in ['.xlsx', '.xls']:
             df = pd.read_excel(filepath, sheet_name=sheet_name)
-            print(f"Loaded Excel file: {filepath} (sheet={sheet_name})")
+            print(f"Loaded Excel file: {filepath}")
         elif ext == '.csv':
-            df = pd.read_csv(filepath)
+            df = pd.read_csv(filepath, **kwargs)
             print(f"Loaded CSV file: {filepath}")
         else:
             raise ValueError(f"\033[93mUnsupported file format: {ext}\033[0m")
@@ -319,6 +366,8 @@ def raw_to_df(file_name, site=None, method=None, sheet_name='Sheet1', dir=None):
 
     # to do: lowercase column names?
     return df
+
+
 
 
 def stnd_names(df, alias_map):
@@ -505,6 +554,32 @@ def safe_row_sum(df: pd.DataFrame, cols: List[str], verbose: bool = True) -> Tup
     return sum_series, offending_idx, numeric_view
 
 
+def one_to_one_hundered(df, metadata, diff_cells='percent', diff_like_cells='percent-like'):
+    """
+    If differential values provided as decimal (all <=1), convert to a percent-like (0-100).
+
+    Args:
+        df(pd.DataFrame): The DataFrame to check.
+        metadata (MetadataBundle): Object with variable groups metadata.
+        diff_cells (str, optional): Name of variables group (appearing in metadata) to be converted.
+        diff_like_cells (str, optional): Name of variables group allowed to be >1 but will still be converted (e.g., can be 110%).
+    """
+    diff_vars = metadata.variable_groups.get(diff_cells, [])
+    diff_vars = [var for var in diff_vars if var in df.columns]
+
+    diff_like_vars = metadata.variable_groups.get(diff_like_cells, [])
+    diff_like_vars = [var for var in diff_like_vars if var in df.columns]
+    vars_to_convert = diff_vars + diff_like_vars
+
+    # Identify rows diff_vars are not <=1
+    all_above_1 = (df[diff_vars] < 1).all(axis=0).all()
+
+    if all_above_1:
+        df[vars_to_convert] = df[vars_to_convert] * 100
+        print(f"[INFO] {diff_cells} values appeared to be fractions. Converted to percentages by multiplying by 100.")
+
+    return df
+
 def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_convert=True, drop_flagged=True, force_num=True):
     """
     Check that differential variables (WBC, NDC, etc.) sum up to approximately 100%.
@@ -526,7 +601,6 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
     Returns:
         df: possibly modified DataFrame (with scaled WBC diff variables)
     """
-    # TO do: if WBC diff needs dividing by 100, do same for percentage-like
     # Get WBC diff variables from context metadata
     wbc_diff_vars = metadata.variable_groups.get(diff_cells, [])
     wbc_diff_vars = [var for var in wbc_diff_vars if var in df.columns]
@@ -557,6 +631,7 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
         print(raw.loc[offending_idx].head(5))
     # Keep safe rows only
     df = df.loc[~offending_rows]
+    df[wbc_diff_vars] = df[wbc_diff_vars].apply(pd.to_numeric, errors="coerce")
 
     # Compute row-wise sum of WBC diff variables
     wbc_sum = df[wbc_diff_vars].sum(axis=1, skipna=True)
@@ -571,9 +646,12 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
     n_close_to_1 = close_to_1[~all_nan].sum()
 
     if auto_convert and n_valid > 0 and n_close_to_1 / n_valid > 0.9:
-        df[wbc_diff_vars] = df[wbc_diff_vars] * 100
-        wbc_sum = df[wbc_diff_vars].sum(axis=1, skipna=True)
-        print(f"[INFO] {diff_cells} values appeared to be fractions. Converted to percentages by multiplying by 100.")
+        # currently conversion applied automatically to all percent and percent-like variables
+        # need to add section where absolute count of percent-like turned divided by wbc_sum before next step
+        # need to add section where other diffs/grades (RBCs) are not included in next function if given in different format than WBC
+        df = one_to_one_hundered(df, metadata, diff_cells='percent', diff_like_cells='percent-like')
+        wbc_sum = wbc_sum * 100
+
 
     # Determine rows where sum is outside acceptable range
     lower_bound = 100 - tolerance
@@ -583,19 +661,24 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
     # Final flagged rows (excluding all-NaN rows)
     flagged = out_of_range & ~all_nan
 
+    # if most are flagged, try calculating differential (numbers might be absolute counts)
+    if flagged.sum() > flagged.size * 0.9:
+        df = calc_diff(df, metadata, diff_cells="WBC diff", additional_cells="percent-like", to_100=True)
+
+
     # Report
-    if flagged.any():
+    elif flagged.any():
         sample_ids = df.loc[flagged, "SampleID"]
         for sid, total in zip(sample_ids, wbc_sum[flagged]):
             if drop_flagged:
                 print(f"\033[91mSample {sid} dropped: {diff_cells} sum = {total:.1f}%\033[0m")
             else:
                 print(f"\033[91mSample {sid}: {diff_cells} sum = {total:.1f}% (expected ~100%)\033[0m")
+        if drop_flagged:
+            df = df[~flagged]
     else:
         print(f"All {diff_cells} sums within acceptable range.")
 
-    if drop_flagged:
-        df = df[~flagged]
 
     return df
 
@@ -670,6 +753,51 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None, to_100
 
     # Drop helper column
     df.drop(columns="_total_WBC", inplace=True)
+
+    return df
+
+def diff_from_total(df, metadata, diff_cells="WBC diff", total_count="TotalWBC", to_100=True):
+    """
+    Convert cell counts to cell differential when given a TotalCount column.
+    Number of cells counted for categories does not need to add up to the TotalCount
+    (multi-classing and/or normals not included).
+    Args:
+        df (pd.DataFrame): The DataFrame to calculate for.
+        metadata (MetadataBundle): Object with variable groups metadata.  # can change script to turn optional when diff_cells is list
+        diff_cells (str or list): Group of cells included in the differential.
+        total_count (str): Name of column to be used as denominator.
+        to_100 (bool, optional): If true will calculate percetange values by 100 (so 100% is 100 instead of 1).
+
+    Returns:
+        DataFrame: Modified DataFrame.
+    """
+    # Resolve diff_cells and additional_cells to lists of variable names
+    if isinstance(diff_cells, str):
+        diff_vars = metadata.variable_groups.get(diff_cells, [])
+    else:
+        diff_vars = diff_cells
+
+    # Check that all variables exist in the DataFrame
+    diff_vars = [v for v in diff_vars if v in df.columns]
+
+    if not diff_vars:
+        print(f"\033[91mWarning: No {diff_cells} variables found in DataFrame.\033[0m")
+        return df
+    if total_count not in df.columns:
+        print(f"\033[91mWarning: {total_count} variable not found in DataFrame.\033[0m")
+        return df
+
+    # for handling cases where total_count is <1
+    no_total = ~(df[total_count] > 1)
+
+    # Replace exact values of diff cells with percentages
+    multiplier = 100 if to_100 else 1
+    for var in diff_vars:
+        df[var] = multiplier * df[var] / df[total_count]
+        df.loc[no_total, var] = pd.NA
+
+
+
 
     return df
 
@@ -837,8 +965,52 @@ def curate_df(df, metadata, src=None, wbcs_as_counts=False):
     else:
         # print warning if WBCs in differential don't add up to ~100
         df = check_diff_sum(df, metadata, tolerance=5)
+        df = check_diff_sum(df, metadata, tolerance=5)
 
     return df
+
+def add_mean_investigator(df, mthd='ClV', min_inv=0, mean_inv_name="Mean Investigator"):
+    # for the observations in mthd, calculate the average of all investigator's reviews
+    # observations with less than min_inv investigators' reviews will not have mean calculated
+    # returns modified df
+
+    val = "Value"
+    subset = ['SampleID', 'Site', 'Variable']
+    inv_subset = subset.copy().append('Investigator')
+
+
+    # take only rows to be used for mean calculation
+    invs_df = df.query(f"Method=='{mthd}' and {val}.notna()")
+
+    # only rows with numeric values
+    invs_df[val] = pd.to_numeric(invs_df[val], errors='coerce')
+    invs_df = invs_df[invs_df[val].notnull()]
+
+    # error if same investigator reviewed same sample twice
+    invs_df = robust_dup(invs_df, key_cols=inv_subset, on_duplicates='error')
+
+    if min_inv:
+        # check number of investigators that reviewed each sample
+        inv_counts = invs_df.groupby(subset)["SampleID"].transform('count')
+        mask_keep = inv_counts >= min_inv
+
+        # report on dropped samples
+        dropped = invs_df.loc[~mask_keep, ['SampleID', 'Site']].drop_duplicates()
+        dropped_report_str = f"Removed {dropped.shape[0]} samples with <{min_inv} investigators' reviews.\n" \
+                             f"Examples:\n{dropped.head(5).to_string(index=False)}"
+        print(dropped_report_str)
+
+        invs_df = invs_df.loc[mask_keep].copy()
+
+    # Compute mean for each group
+    means_df = invs_df.groupby(subset, as_index=False)[val].mean()
+
+    # add to original
+    means_df['Investigator'] = mean_inv_name
+    means_df['Method'] = mthd
+    means_df['ValueOrigin'] = 'Mean'
+
+    return pd.concat([df, means_df])
 
 
 def pivot_long(df, id_vars=["SampleID", "Site", "Method", "FileName"], value_vars=[]):
@@ -1153,53 +1325,27 @@ def set_equal_limits_and_scale(fig=None, ax=None):
         a.set_aspect('equal')
 
 
-""" pipeline functions - will change later """
-def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"]):
-    # standardize column names
-    df = stnd_names(df, metadata.alias_map)
-
-    # print warning if WBCs in differential don't add up to ~100
-    # need to reach decision if this should be df = check_diff_sum instead when organizing functions
-    df = check_diff_sum(df, metadata, tolerance=5)
-
-    df = pivot_long(df, id_vars=id_vars)
-    df = add_grade_column(df, metadata)
-    df = add_pos_column(df, metadata)
-    df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
-    df = df.dropna(subset=["SampleID"])  # drop when no readable SampleID
-
-    # calculate derived variables (e.g., Variant Lymphocytes)
-    df = create_derived_variables_long(df, metadata)
-    # reconsider performing only after concatenation of all long dataframes
-
-    print(df)
-
-    return df
-
-
-def medium_pipe(file_name, site, method, metadata, sheet_name='Sheet1', dir=None,
-                id_vars=["SampleID", "Site", "Method", "FileName"], stnrd_id=True):
-    if stnrd_id:
-        df = raw_to_df(file_name, site, method, sheet_name, dir)
-    else:
-        df = raw_bma_to_df(file_name, site, method, sheet_name, dir)
-    df = short_pipe(df, metadata, id_vars=id_vars)
-
-    return df
-
-
 """ BMA study tools """
 def raw_bma_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
     # temporary form, works when semi-automatic data prep used
     # to do: create pointer function that chooses which raw-to-df function to use
     df = read_to_df(file_name, sheet_name, dir)
+    # this entire section plus the header=None can be its own transpose with multiple identifiers function
+    df = pd.read_csv(os.path.join(dir, file_name), header=None)
+    sample_ids = df.iloc[0]
+    reviewers = df.iloc[1]
+    df.columns = pd.MultiIndex.from_arrays([sample_ids, reviewers])
+    df = df.iloc[2:].copy()
+    df = df.T.reset_index()
+    df.columns = df.iloc[0]
+    df = df[1:]
 
     # Standardize the SampleID
     possible_id_cols = ["SampleID", "Sample", "Sample ID", "ID", "Barcode", "barcode", "Case", "Anonymised no.", "Case ID"]
     id_col = next((col for col in possible_id_cols if col in df.columns), None)
     if not id_col:
         raise ValueError(f"No sample ID column found in {file_name}")
-    df.rename(columns={id_col: "SampleID"}, inplace=True)
+    df.rename(columns={id_col: "SampleID", "Signed Off By": "Investigator"}, inplace=True)
 
     if "SampleID" not in df.columns:
         raise ValueError(f"Missing 'SampleID' column in {file_name}")
@@ -1215,24 +1361,4 @@ def raw_bma_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
     # to do: lowercase column names?
     return df
 
-def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', dir=None,
-                      id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator']):
-    df = raw_bma_to_df(file_name, site, method, sheet_name, dir)
-    # standardize column names
-    df = stnd_names(df, metadata.alias_map)
 
-    if method == 'TEST':  # in future represent this as site rules
-        df = calc_diff(df, metadata, diff_cells="NDC", additional_cells="NDC-like")
-        df = calc_diff(df, metadata, diff_cells="NDC lineage")
-    else:
-        # print warning if WBCs in differential don't add up to ~100
-        check_diff_sum(df, metadata, tolerance=5, diff_cells="NDC")
-    df = pivot_long(df, id_vars=id_vars)
-    df = add_grade_column(df, metadata)
-    df = add_pos_column(df, metadata)
-    df = df.dropna(subset=["Value", "Grade"], how="all")
-
-    # calculate derived variables (e.g., Variant Lymphocytes)
-    df = create_derived_variables_long(df, metadata)
-    # reconsider performing only after concatenation of all long dataframes
-    return df

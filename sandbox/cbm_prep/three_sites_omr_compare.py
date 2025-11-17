@@ -8,7 +8,7 @@ from itertools import product
 
 if __name__ == "__main__":
     meta_path = r'config.yaml'
-    save_name = 'all_sites_combined_omr_lym'
+    save_name = 'all_site_omr'
     cur_dir = os.path.abspath(os.path.dirname(__file__))
 
     metadata = MetadataBundle(meta_path)
@@ -19,16 +19,16 @@ if __name__ == "__main__":
     srcs = {(site, mthd): f'{site}_{mthd}.csv' for site, mthd in product(sites, mthds)}
 
     methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison')
-    vars_to_write = metadata.variable_groups['WBC diff'] + ['Total WBC', 'PLT', 'WBC', 'Parasites']
+    vars_to_write = metadata.variable_groups['WBC&PLT compare'] + ['Total WBC', 'PLT', 'WBC', 'Parasites', 'Unclassified WBC']
 
 
-    # comp_mtrx = methd_comp.export_comparison_matrix(out_path=f'comp_tables/{save_name}.csv',
-    #                                                 comparison_dims=("Variable", "Method"),
-    #                                                 needed_vars=vars_to_write)
+    comp_mtrx = methd_comp.export_comparison_matrix(out_path=f'comp_tables/{save_name}.csv',
+                                                    comparison_dims=("Variable", "Method"),
+                                                    needed_vals=vars_to_write,
+                                                    needed_grades=["scan_id"])
 
     vars_to_test = metadata.variable_groups['WBC&PLT compare']
 
-    vars_to_test = ['Atypical Lymphocyte','Aberrant Lymphocyte']
 
     methd_comp.batch_fit(['OMR'], ['CBM'], vars_to_test, site_filters=sites)
     methd_comp.batch_fit(['OMR'], ['CBM'], vars_to_test)
