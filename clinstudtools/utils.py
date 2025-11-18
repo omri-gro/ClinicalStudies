@@ -11,10 +11,15 @@ import os
 def _ensure_list(x):
     """If argument is a tuple, convert to list.
     If argument is anything else but a list, return list containing that one object."""
-    if isinstance(x, tuple):
+    if isinstance(x, list):
+        return x
+    elif isinstance(x, tuple):
         return list(x)
+    elif isinstance(x, pd.Series):
+        return x.to_list()
     else:
-        return x if isinstance(x, list) else [x]
+        return [x]
+
 
 
 def _as_df(obj_or_df) -> pd.DataFrame:

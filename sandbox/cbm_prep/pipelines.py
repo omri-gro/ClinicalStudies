@@ -58,13 +58,19 @@ def medium_pipe(file_name, site, method, metadata, sheet_name='Sheet1', dir=None
 
 def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', dir=None,
                       id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator']):
+    def stnd_bma_id(name):
+        match = re.match(r"^([A-Za-z]*\d+)", str(name))
+        return match.group(1) if match else name
+
     df = raw_bma_to_df(file_name, site, method, sheet_name, dir)
     # standardize column names
     df = stnd_names(df, metadata.alias_map)
+    df['SampleID'] = df['SampleID'].apply(stnd_bma_id)
 
     if method == 'TEST':  # in future represent this as site rules
-        df = calc_diff(df, metadata, diff_cells="NDC", additional_cells="NDC-like")
-        df = calc_diff(df, metadata, diff_cells="NDC lineage")
+        df = calc_diff(df, metadata, diff_cells="NDC")
+        # df = calc_diff(df, metadata, diff_cells="NDC", additional_cells="NDC-like")
+        # df = calc_diff(df, metadata, diff_cells="NDC lineage")
     else:
         # print warning if WBCs in differential don't add up to ~100
         check_diff_sum(df, metadata, tolerance=5, diff_cells="NDC")

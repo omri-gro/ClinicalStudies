@@ -344,7 +344,7 @@ class MethodComparator:
         x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter, measurement_col=measurement_col, on_duplicates="first")
 
         if site_filter:
-            site_filter = sb.ensure_list(site_filter)
+            site_filter = sb._ensure_list(site_filter)
 
         # placeholder regression_func → replace with your real implementation
         stats = reg.regression_comp(x, y, reg_method=model)  # placeholder - replace later with different regression functions
@@ -370,10 +370,10 @@ class MethodComparator:
         """Run regression across many combinations of methods, variables and sites in one call."""
         # currently ref_methods, test_methods, variables should be lists, consider option to allow strings as well
 
-        ref_methods = sb.ensure_list(ref_methods)
-        test_methods = sb.ensure_list(test_methods)
-        variables = sb.ensure_list(variables)
-        site_filters = sb.ensure_list(site_filters)
+        ref_methods = sb._ensure_list(ref_methods)
+        test_methods = sb._ensure_list(test_methods)
+        variables = sb._ensure_list(variables)
+        site_filters = sb._ensure_list(site_filters)
 
         for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
             if ref == test:
@@ -391,10 +391,10 @@ class MethodComparator:
         kwargs - sent to calculating function (model, measurement, etc.)
         """
         # if iterated arguments are str or None, convert to list
-        ref_methods = sb.ensure_list(ref_methods)
-        test_methods = sb.ensure_list(test_methods)
-        variables = sb.ensure_list(variables)
-        site_filters = sb.ensure_list(site_filters)
+        ref_methods = sb._ensure_list(ref_methods)
+        test_methods = sb._ensure_list(test_methods)
+        variables = sb._ensure_list(variables)
+        site_filters = sb._ensure_list(site_filters)
 
         for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
             if ref == test:

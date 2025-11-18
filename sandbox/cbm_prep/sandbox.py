@@ -143,12 +143,16 @@ def _as_df(obj_or_df) -> pd.DataFrame:
 
 
 def _ensure_list(x):
-    """If argument is a tuple, convert to list.
+    """If argument is a tuple/series, convert to list.
     If argument is anything else but a list, return list containing that one object."""
-    if isinstance(x, tuple):
+    if isinstance(x, list):
+        return x
+    elif isinstance(x, tuple):
         return list(x)
+    elif isinstance(x, pd.Series):
+        return x.to_list()
     else:
-        return x if isinstance(x, list) else [x]
+        return [x]
 
 def _round_df(df: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
     out = df.copy()
@@ -722,6 +726,10 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None, to_100
     # Combine all variables used for validation
     all_vars = diff_vars + additional_vars
 
+    # try converting to numeric
+    df_orig = df
+    df[all_vars] = df[all_vars].apply(pd.to_numeric, errors="coerce")
+
     # Check that all variables have exact counts (non-negative integers)
     invalid_vars = []
     for var in all_vars:
@@ -735,7 +743,7 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None, to_100
     if invalid_vars:
         print(f"Warning: The following variables do not contain exact counts "
               f"(non-negative integers): {invalid_vars}. Aborting calculation.")
-        return df
+        return df_orig
 
     # Calculate total WBC count (sum of diff cells)
     df["_total_WBC"] = df[diff_vars].sum(axis=1, skipna=True)
@@ -1134,7 +1142,7 @@ def to_comparison_matrix(
         value_col: str = "Value",  # or "Grade"
         needed_vars: Optional[Iterable[str]] = None,   # if None and metadata provided, pull from metadata.variable_groups['percent']
         require_complete_cases: bool = True,           # only keep rows where all comparison cells are present (no NaNs)
-        drop_na_mode: str = "all",  # or "any" if even a single NaN is enough to drop
+        drop_na_mode: str = "all",  # or "any" if even a single NaN in row is enough to drop it
         decimals: int = 3,   # will attempt to round any output column possible. Change to non-integer to avoid rounding.
         column_order: Optional[Sequence[Sequence]] = None,  # e.g., [list_of_methods, list_of_investigators]; order applied where dims exist
         flatten_columns: bool = True,  # flatten MultiIndex columns like ('MethodA','Inv1') -> "MethodA|Inv1"
@@ -1188,9 +1196,11 @@ def to_comparison_matrix(
             subset_cols = list(wide.columns)
         wide = wide.dropna(axis=0, how=drop_na_mode, subset=subset_cols)
 
+
     # --- column reordering by provided order ---
     if not column_order:
         column_order = _default_col_order(df, present_comp_dims)
+
     # Build a MultiIndex product for the dims we actually have.
     # If user supplied lengths mismatch (e.g., only methods list but no Investigator in data), use what exists.
     # Example: column_order = [methods, investigators]
@@ -1221,6 +1231,9 @@ def to_comparison_matrix(
     if flatten_columns and isinstance(wide.columns, pd.MultiIndex):
         wide.columns = [sep.join(map(str, col)).strip(sep) for col in wide.columns]
         wide.columns = pd.Index(wide.columns, name=sep.join(present_comp_dims))
+
+    # drop empty columns - turn into boolean argument based if needed
+    wide = wide.dropna(axis=1, how='all')
 
     return wide.reset_index()
 
