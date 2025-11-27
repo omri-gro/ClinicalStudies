@@ -13,7 +13,7 @@ if __name__ == "__main__":
     analysis_name = "bwh_version_compare"
 
     raw_dir = os.path.abspath(os.path.dirname(__file__))
-    raw_dir = os.path.join(raw_dir, r'raw', analysis_name)
+    raw_dir = os.path.join(raw_dir, r'../raw', analysis_name)
     metadata = sb.MetadataBundle('config.yaml')
 
 

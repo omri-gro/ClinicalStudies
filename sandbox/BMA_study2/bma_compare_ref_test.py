@@ -44,6 +44,9 @@ if __name__ == "__main__":
         ref_df = removed_for_arbitration(ref_df, df_arb, arbitrators)
         test_df = removed_for_arbitration(test_df, df_arb, arbitrators)
 
+        # need to find way add_mean_investigator's min_inv could handle arbitrator-only samples,
+        # maybe split add_mean_investigator into 2-3 steps, or integrate with removed_for_arbitration
+        # for now can do this by removing only 1 reviewer cases beforehand
         ref_df = add_mean_investigator(ref_df, mthd='REF')
         test_df = add_mean_investigator(test_df, mthd='TEST')
 
@@ -62,7 +65,7 @@ if __name__ == "__main__":
     ndc_vars_list = metadata.variable_groups['NDC']
     needed_rows = methd_comp.df[methd_comp.df['Variable'].isin(ndc_vars_list)]
 
-    comp_table = methd_comp.export_comparison_matrix(needed_vals=ndc_vars_list)
+    comp_table = methd_comp.export_comparison_matrix(needed_vals=ndc_vars_list, comparison_dims=("Variable", "Method", "Investigator"))
     comp_table.rename(columns={'SampleID': 'TEST Barcode'}, inplace=True)
     id_lookup = df_map.set_index('TEST Barcode')['REF Barcode']
     comp_table['REF Barcode'] = comp_table['TEST Barcode'].map(id_lookup)

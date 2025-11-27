@@ -1089,19 +1089,3 @@ variables:
   groups:
    - derived
 
-
-Source fixes:  # to do: change script so as to have keys be tuples of site and method
- (CPG, OMR):
-  fill_nans_rules:
-   - target: WBC diff
-   - target: WBC-like
-   - target: PLT morphology
-     condition_column: RBC & PLT Morphology         # morphologies read as 0 only where 'RBC & PLT Morphology' is specified field
-     condition_values: ["Reviewed", "Unremarkable"]
-   - target: RBC morphology
-     condition_column: RBC & PLT Morphology
-     condition_values: ["Reviewed", "Unremarkable"]
-  raw_given_as_grade: ["PLT morphology", "RBC morphology", "WBC morphology"]
-
- (BWH, Manual):
-  raw_given_as_grade: ["PLT morphology", "Dohle Bodies"]

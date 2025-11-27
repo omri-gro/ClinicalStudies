@@ -13,6 +13,7 @@ from pipelines import clv_pipe, medium_pipe
 """
 For developing the following MethodComparator methods:
 1. Creating new method comparator with only specific variables and only samples that can be compared (value/grade exist for both methods, numeric if necessary) - might want to integrate into to_comparison_matrix
+    a. can be done by filtering NaNs in value/grade (or checking if they are numeric) and counting number of unique methods(/investigators) per [SampleID, Site, Variable] combination, keeping only if >1
 2. Positive cases count (using the grades/normal ranges) - saved as another attribute (need to decide if print right there or as part of regression results)
 3. Flagging? (see if better here or in wide dataframe)
 4. Exclusion of samples according to list

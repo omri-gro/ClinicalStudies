@@ -21,6 +21,24 @@ def clv_pipe(path, site, metadata, method="ClV",
     return df
 
 
+def mean_manual_pipe(path, site, metadata, method="manual",
+                     sheet_name='Sheet1', dir=None, id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator'],
+                     only_mean=True, min_inv=0):
+    """ Pipeline for preparing manual review results from multiple investigators"""
+    raw_df = raw_to_df(path, site, method, sheet_name, dir)
+    df = stnd_names(raw_df, metadata.alias_map)
+    df = calc_diff(df, metadata, additional_cells="WBC-like")
+    df = pivot_long(df, id_vars=id_vars)
+    df = add_mean_investigator(df, method, min_inv)
+    if only_mean:
+        df = df.query("Investigator=='Mean Investigator'")
+    df = add_grade_column(df, metadata)
+    df = add_pos_column(df, metadata)
+    df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
+    df = df.dropna(subset=["SampleID"])  # drop when no readable SampleID
+    df = create_derived_variables_long(df, metadata)
+    return df
+
 
 """ Old pipeline functions - kept for compatibility"""
 def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"]):
@@ -40,8 +58,6 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
     # calculate derived variables (e.g., Variant Lymphocytes)
     df = create_derived_variables_long(df, metadata)
     # reconsider performing only after concatenation of all long dataframes
-
-    print(df)
 
     return df
 

@@ -202,6 +202,10 @@ class MethodComparator:
             sb.write_df_to_file(wide_df, out_path)
         return wide_df
 
+    def clean_calculations(self):
+        self.results = {}
+        self.metrics = {}
+
     def apply_to_df(self, function: str, *args, inplace=False, **kwargs):
         # still needs testing, use 'Pythonic method delegation' for improvements
         """
@@ -406,8 +410,6 @@ class MethodComparator:
                     continue
             except Exception as e:
                 print(f"Skipping {function} calculation for {var} ({ref} vs {test}, {sites}): {e}")
-
-
 
 
     def calc_all_biases(self, crit_points_dict):
