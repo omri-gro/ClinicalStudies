@@ -18,6 +18,7 @@ from dataclasses import dataclass, asdict
 from matplotlib.backends.backend_pdf import PdfPages
 import plotting
 from pipelines import medium_pipe, bma_prep_pipeline
+from stats_sandbox import binary_classification_metrics, binary_classification_metrics_bootstrap
 
 
 @dataclass
@@ -170,6 +171,10 @@ class MethodComparator:
         df1_com = df1[common]
         df2_com = df2[common]
 
+        # for cases where SampleID is int in one df and str in other
+        if pd.api.types.is_numeric_dtype(df2_com['SampleID'].dtype) and not pd.api.types.is_numeric_dtype(df1_com['SampleID'].dtype):
+            df2_com["SampleID"] = df2_com["SampleID"].astype(str).str.zfill(len(df1_com["SampleID"].iloc[0]))
+
         # Build a set-like MultiIndex of unique df2 keys, test membership for df1
         keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())
         mask = pd.MultiIndex.from_frame(df1_com).isin(keys_df2)  # samples appearing in both are in True
@@ -245,6 +250,46 @@ class MethodComparator:
         else:
             # For Series, scalars, or other objects — just return as-is
             return result
+
+    def _col_from_ids(self, ids, mthd, variable, column):
+        """
+        Return array of another column's values (e.g. boolean flags) for matched IDs.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Original long-format DataFrame.
+        ids : list of (SampleID, Site)  # need to add option Reviewer in ids
+            IDs from _prepare_arrays.
+        mthd : str
+            The method name to extract column for.
+        variable: str
+            The variable used in _prepare_arrays.
+        column : str
+            Column whose values to retrieve (e.g. 'Positive').
+
+        Returns
+        -------
+        rtrn_col : np.ndarray
+        """
+        # Build a DataFrame of only those ids and methods
+        # and keep only the column of interest.
+        df = self.df
+        ids_with_var = [t + (variable, ) for t in ids]
+        sub = df[
+            (df["Method"] == mthd) &
+            (df.set_index(["SampleID", "Site", "Variable"]).index.isin(ids_with_var))
+            ][["SampleID", "Site", "Variable", "Method", column]].copy()
+
+        # Pivot just like in _prepare_arrays
+        wide = sub.pivot(index=["SampleID", "Site", "Variable"],
+                         columns="Method",
+                         values=column)
+
+        # Align with order of ids from the original result
+        wide = wide.reindex(ids_with_var)
+
+        return wide[mthd].to_numpy()
 
     def _prepare_arrays(
         self,
@@ -336,6 +381,42 @@ class MethodComparator:
 
         return x, y, ids
 
+    def sen_spe(self,
+                ref_method: str,
+                test_method: str,
+                variable: str,
+                site_filter: Optional[List[str]] = None,
+                measurement_col="Positive",
+                cis=True,
+                **kwargs):
+        """
+        Calculate sensitivity/specificity for one variable/site/method pair.
+        Possible kwargs: m_boot, alpha, random_state.
+        """
+        # consider merging this function and fit function
+
+        x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter,
+                                         measurement_col=measurement_col, on_duplicates="first")
+
+        if site_filter:
+            site_filter = sb._ensure_list(site_filter)
+
+        if cis:
+            result = binary_classification_metrics_bootstrap(x, y, **kwargs)
+        else:
+            result = binary_classification_metrics(x, y)
+
+        key = (ref_method, test_method, variable, ",".join(site_filter) if site_filter else "All")
+        self.metrics[key] = {
+            "x": x,
+            "y": y,
+            "ids": ids,
+            "mtr": result
+        }
+
+        return self.results[key]
+
+
     def fit(self,
             ref_method: str,
             test_method: str,
@@ -368,6 +449,13 @@ class MethodComparator:
             "ids": ids,
             "reg": result
         }
+
+        # add count of positives if possible - need to make this its own method later
+        if 'Positive' in self.df.columns:
+            if pd.api.types.is_bool_dtype(self.df['Positive']):
+                tst_pos = self._col_from_ids(ids, ref_method, variable, 'Positive')
+                self.results[key].update({"pos": tst_pos, "pos_count": tst_pos.sum()})
+
         return self.results[key]
 
     def batch_fit(self, ref_methods, test_methods, variables, site_filters=None, model="deming", measurement_col="Value"):
@@ -404,10 +492,10 @@ class MethodComparator:
             if ref == test:
                 continue
             try:
-                if function == 'regression':   # consider using register decorator if many functions
+                if function in ['Regression', 'regression', 'deming']:   # consider using register decorator if many functions
                     self.fit(ref, test, var, site_filter=sites, **kwargs)
                 elif function == 'binary':
-                    continue
+                    self.sen_spe(ref, test, var, site_filter=sites, **kwargs)
             except Exception as e:
                 print(f"Skipping {function} calculation for {var} ({ref} vs {test}, {sites}): {e}")
 
@@ -443,7 +531,7 @@ class MethodComparator:
             ref_method, test_method, variable, site = key
             stats: RegressionResult = val["reg"]
 
-            # create printable version of regression results (to do: add this as attribute for RegressionResult
+            # create printable version of regression results (to do: add this as attribute for RegressionResult)
             if math.isnan(stats.slope) or stats.slope == float('inf') or stats.slope == float('-inf'):
                 reg_strngs = ["NA", "NA", "NA"]
             else:
@@ -463,8 +551,10 @@ class MethodComparator:
                 "N": stats.n,
                 "Slope": reg_strngs[0],
                 "Intercept": reg_strngs[1],
-                "R^2": reg_strngs[2]
+                "R^2": reg_strngs[2],
+                "Positives": val.get('pos_count', None)
             }
+
             rows.append(row)
 
         return pd.DataFrame(rows)

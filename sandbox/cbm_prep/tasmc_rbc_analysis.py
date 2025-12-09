@@ -4,9 +4,7 @@ import sandbox as sb
 import os
 
 if __name__ == "__main__":
-    site = 'TASMC'
     meta_path = r'config.yaml'
-    # save_name = f'{site}_rbc'
     save_name = f'both_rbc'
     cur_dir = os.path.abspath(os.path.dirname(__file__))
 

@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
     # filter out inappropriate scans
     # rmv_file = 'slides_to_remove.csv'
-    # rmv_df = read_to_df(frmt_file, file_dir=os.getcwd())
+    # rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
 
     graded_params = frmt_df['Variable']
     is_in_list = df['Variable'].isin(graded_params)
