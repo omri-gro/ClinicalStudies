@@ -33,7 +33,7 @@ if __name__ == "__main__":
     use_omr = True
 
     mean_inv = True
-    remove_cases_by_list = True
+    remove_cases_by_list = False
 
     meta_path = r'config.yaml'
     save_name = f'clv_cbm_mean_{mean_inv}_filt_{remove_cases_by_list}'
@@ -81,7 +81,6 @@ if __name__ == "__main__":
 
 
     vars_to_test = metadata.variable_groups['RBC morphology'] + metadata.variable_groups['PLT morphology'] + metadata.variable_groups['RBC combinations']
-
 
 
     methd_comp.export_comparison_matrix(out_path=fr'comp_tables/{save_name}.csv',

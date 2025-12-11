@@ -42,5 +42,11 @@ PLOT_STYLES = {
         "legend": True,
         "legend_title": "Site",
         "legend_loc": "upper right"
+    },
+    "inter_pairs": {
+        "title": "Pairs Plot",
+        "xlabel": "X",
+        "ylabel": "Y",
+        "color": None
     }
 }

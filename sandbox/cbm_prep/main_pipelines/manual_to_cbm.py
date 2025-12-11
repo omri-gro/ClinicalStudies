@@ -7,19 +7,24 @@ from sandbox import MetadataBundle, read_to_df
 from pipelines import mean_manual_pipe, medium_pipe
 
 if __name__ == "__main__":
-    sites = ['CPG', 'LMU', 'TASMC']
-    save_name = 'mnl'
+    sites = ['CPG', 'LMU', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
 
-    exprt_mtrx = False
-    remove_cases_by_list = True
+    exprt_mtrx = True
+    remove_cases_by_list = False
+    save_name = f'mnl_filt_{remove_cases_by_list}_pre_session'
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
     raw_dir = os.path.join(cur_dir, r'raw', analysis_name)
 
     metadata = MetadataBundle(meta_path)
+
+    invstigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
+                        'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
+                        'YAEL ASYEGH': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Yael S': 'Rev2', 'Yael Sayegh': 'Rev2',
+                        'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
 
     df_srcs_list = []
     for site in sites:
@@ -31,6 +36,7 @@ if __name__ == "__main__":
     df_srcs_list.append(cbm_df)
 
     all_dfs = pd.concat(df_srcs_list)
+    all_dfs['Investigator'] = all_dfs['Investigator'].map(invstigators_map)
     methd_comp_all_inv = MethodComparator(all_dfs)
     methd_comp = methd_comp_all_inv.apply_to_df('query', "Investigator=='Mean Investigator' or Investigator=='CBM'",
                                                 inplace=False)
@@ -67,6 +73,11 @@ if __name__ == "__main__":
         rmv_file = 'slides_to_remove_long.csv'
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
+
+
+    # binary parameters sensitivity/specificity
+    binary_vars = metadata.variable_groups["binary"]
+    methd_comp.batch_compare('manual', 'CBM', binary_vars, site_filters=sites, function='binary')
 
     methd_comp.batch_fit(['manual'], ['CBM'], vars_to_test)
     methd_comp.batch_fit(['manual'], ['CBM'], vars_to_test, site_filters=sites)

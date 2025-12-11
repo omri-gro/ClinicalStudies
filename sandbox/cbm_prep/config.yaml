@@ -124,7 +124,7 @@ variables:
    - percent
    - WBC&PLT compare
   crit_points: [0, 10, 15]
-  normal_range: [0, 10]
+  normal_range: [0, 5]
  Atypical Lymphocyte:
   aliases:
    - Atypical Lymphocytes %
@@ -138,7 +138,7 @@ variables:
    - percent
    - WBC&PLT compare
   crit_points: [0, 20, 40]
-  normal_range: [0, 20]
+  normal_range: [0, 5]
  Aberrant Lymphocyte:
   aliases:
    - Aberrant lymphocytes %

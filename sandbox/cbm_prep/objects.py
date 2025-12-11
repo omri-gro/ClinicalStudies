@@ -173,7 +173,7 @@ class MethodComparator:
 
         # for cases where SampleID is int in one df and str in other
         if pd.api.types.is_numeric_dtype(df2_com['SampleID'].dtype) and not pd.api.types.is_numeric_dtype(df1_com['SampleID'].dtype):
-            df2_com["SampleID"] = df2_com["SampleID"].astype(str).str.zfill(len(df1_com["SampleID"].iloc[0]))
+            df2_com["SampleID"] = df2_com["SampleID"].astype(str).str.zfill(len(df1_com.loc[0, "SampleID"]))
 
         # Build a set-like MultiIndex of unique df2 keys, test membership for df1
         keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())

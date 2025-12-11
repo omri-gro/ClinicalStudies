@@ -5,6 +5,7 @@ from typing import Callable, Dict, List, Tuple, Optional
 
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 import numpy as np
 from plot_styles import DEFAULT_STYLE, PLOT_STYLES
 
@@ -263,6 +264,73 @@ def plot_scatter_groups(
 
     return fig, ax
 
+
+@register("inter_pairs")
+def inter_pairs(
+        data,
+        style=None,
+        fig=None,
+        ax=None,
+        *,
+        x1=None,       # optional 1D array of reviewer 1's values
+        x2=None,       # optional 1D array of reviewer 2's values
+        y=None,        # optional 1D array of y value
+        x1key="Rev1",  # keys for extracting from `data` if arrays not passed directly
+        x2key="Rev2",
+        ykey="y",
+        **_,
+):
+    """
+    Horizontal line plot for each pair of points from same sample
+    (inter-reviewer, two measurements/reviews of single slide, both compared to same y-value).
+    # to add later - option for markers at edges in addition to the central marker,
+                     differentiation between reviewers by color
+
+    Parameters
+    ----------
+    data : dict-like, optional
+        Should contain x1key, x2key and ykey.
+    style : dict, optional
+        Keys:
+          - color: color for central point
+          - marker: marker style (default: 'o')
+          - markersize: float
+          - xlabel, ylabel, title, grid: standard styling keys
+    fig, ax : existing figure and axes or None to create new
+    x1, x2, y : arrays, optional
+        Directly specify coordinates. Overrides keys.
+    x1key, x2key, ykey : str
+        Keys to extract from `data` if x1/x2/y not given directly.
+    """
+    style = style or {}
+    if ax is None or fig is None:
+        fig, ax = plt.subplots()
+
+    # Extract x1, x2, y
+    if x1 is None or x2 is None or y is None:
+        x1 = np.asarray(data[x1key])
+        x2 = np.asarray(data[x2key])
+        y = np.asarray(data[ykey])
+    else:
+        x1 = np.asarray(x1)
+        x2 = np.asarray(x2)
+        y = np.asarray(y)
+        if not (len(x1) == len(x2) == len(y)):
+            raise ValueError("x1, x2, y must have the same length.")
+
+    segments = np.column_stack([
+        np.stack([x1, y], axis=1),
+        np.stack([x2, y], axis=1)
+    ]).reshape(-1, 2, 2)
+
+    lc = LineCollection(segments)  # to do: add style kwargs for lines
+    ax.add_collection(lc)
+
+    # Apply common axes styling if available
+    if "apply_axes_style" in globals():
+        apply_axes_style(ax, style)
+
+    return fig, ax
 
 @register("overlay_regression_line")
 def overlay_regression_line(
