@@ -451,6 +451,7 @@ variables:
   groups:
    - RBC morphology
    - RBC size
+   - grade
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]

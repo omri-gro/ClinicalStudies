@@ -812,11 +812,12 @@ def diff_from_total(df, metadata, diff_cells="WBC diff", total_count="TotalWBC",
 
 # to do: add step/function before/after this function where other shapes of same grade are converted to uniform look (e.g., "x" changed to "Negative")
 # to do: integrate this somehow with checking positive cases (will behave like grade with single threshold, or checking where not nan/0 when pregraded)
-def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle"):
+def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle", raw_grade_cond=None):
     """
     Expects df_long columns: SampleID, Variable, Value, Method, Site (case-sensitive).
     Adds column for grades based on number in value column.
     Uses MetaDataBundle, which is expected to include grading_specs dict with thresholds and grades for variable names.
+    raw_grade_cond is callable condition defining when numeric grades were provided in df_long instead of values
     """
     # currently data is converted to grades but not to pd.CategoricalDtype - if want to change add the _coerce_grade_categorical function
 
@@ -828,9 +829,16 @@ def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle"):
     df["Grade"] = pd.NA
     df["Grade_from"] = pd.NA
 
-    # Copy-as-is for non-numeric rows
+    # Copy-as-is for non-numeric rows or those filling given_grade_cond
     value_num = pd.to_numeric(df["Value"], errors="coerce")
     non_numeric = value_num.isna() & df["Value"].notna()  # strings like "N/A", "Not evaluable", etc.
+
+    # for values provided as numeric grades and previously read as values
+    if raw_grade_cond is not None:
+        non_numeric = non_numeric | raw_grade_cond(df)
+        if not isinstance(non_numeric, pd.Series) or non_numeric.dtype != bool:
+            raise TypeError("raw_grade_cond must return a boolean pandas Series")
+
     if non_numeric.any():
         df.loc[non_numeric, "Grade"] = df.loc[non_numeric, "Value"]
         df.loc[non_numeric, "Grade_from"] = "provided"
@@ -839,6 +847,7 @@ def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle"):
 
 
     # mask indices where MetaDataBundle claims raw was given as grade
+    # currently not in use at pregraded_index not defined for either studies' context configuration
     if meta.pregraded_index is not None:
         keys = pd.MultiIndex.from_frame(df[["Site", "Method", "Variable"]])
         pregraded = meta.pregraded_index.reindex(keys, fill_value=False).to_numpy()
@@ -856,7 +865,7 @@ def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle"):
 
     # derive grade from gradable numeric values (which were not already provided as grades)
     gradable_vars = set(meta.grading_specs.keys())
-    need_convert = (~pregraded) & ~non_numeric & df["Variable"].isin(gradable_vars)
+    need_convert = (~pregraded) & (~non_numeric) & df["Variable"].isin(gradable_vars)
     if need_convert.any():
         for var in sorted(gradable_vars):
             mv = need_convert & df["Variable"].eq(var)
@@ -910,7 +919,7 @@ def add_pos_column(df_long: pd.DataFrame, meta: "MetadataBundle",
                 continue
             norm_range = normal_ranges[var]
             if len(norm_range) == 2:
-                df.loc[mv, "Positive"] = ~df.loc[mv, "Value"].between(norm_range[0], norm_range[1], inclusive="both")
+                df.loc[mv, "Positive"] = ~value_num[mv].between(norm_range[0], norm_range[1], inclusive="both")
             else:
                 print(f'{norm_range} is not an appropriate normal range for {var}')
     return df

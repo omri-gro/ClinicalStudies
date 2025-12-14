@@ -29,6 +29,8 @@ if __name__ == "__main__":
     # methd_comp.calc_all_biases(metadata.crit_points)
 
     methd_comp.save_results(rf'results/{save_name}_reg.csv')
+
+
     # methd_comp.save_results(rf'results/{save_name}_bias.xlsx', result_type='bias')
     # methd_comp.plot_all_regressions(f'results/{save_name}_reg.pdf')
 

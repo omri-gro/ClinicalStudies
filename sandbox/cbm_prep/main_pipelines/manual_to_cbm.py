@@ -12,8 +12,8 @@ if __name__ == "__main__":
     meta_path = r'config.yaml'
 
     exprt_mtrx = True
-    remove_cases_by_list = False
-    save_name = f'mnl_filt_{remove_cases_by_list}_pre_session'
+    remove_cases_by_list = True
+    save_name = f'mnl_filt_{remove_cases_by_list}'
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
