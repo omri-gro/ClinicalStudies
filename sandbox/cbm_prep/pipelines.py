@@ -3,21 +3,26 @@ from sandbox import *
 
 def clv_pipe(path, site, metadata, method="ClV",
              sheet_name='Sheet1', dir=None, id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator'],
-             only_mean=True, min_inv=0):
+             only_mean=True, min_inv=0, mean_inv=True, grade_pos=True, drv_vars=True):
     """ Pipeline for preparing ClV results from GoogleForms results/aggregation of PDF results"""
     clv_raw_df = raw_to_df(path, site, method, sheet_name, dir)
     df = stnd_names(clv_raw_df, metadata.alias_map)
     df = diff_from_total(df, metadata, diff_cells="RBC morphology", total_count="TotalRBC")
     df = diff_from_total(df, metadata, diff_cells="PLT morphology", total_count="TotalPLT")
     df = pivot_long(df, id_vars=id_vars)
-    df = add_mean_investigator(df, method, min_inv)
-    if only_mean:
-        df = df.query("Investigator=='Mean Investigator'")
-    df = add_grade_column(df, metadata)
-    df = add_pos_column(df, metadata)
-    df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
+    if mean_inv:
+        df = add_mean_investigator(df, method, min_inv)
+        if only_mean:
+            df = df.query("Investigator=='Mean Investigator'")
+    if grade_pos:
+        df = add_grade_column(df, metadata)
+        df = add_pos_column(df, metadata)
+        df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
+    else:
+        df = df.dropna(subset=["Value"], how='all')
     df = df.dropna(subset=["SampleID"])  # drop when no readable SampleID
-    df = create_derived_variables_long(df, metadata)
+    if drv_vars:
+        df = create_derived_variables_long(df, metadata)
     return df
 
 

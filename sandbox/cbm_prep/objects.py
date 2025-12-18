@@ -152,64 +152,92 @@ class MethodComparator:
     def filter_by_df(self,
                      filtering_source: Union[str, Path, pd.DataFrame],
                      filtering_cols: Optional[Sequence[str]] = None,
-                     include_rows=False):
+                     include_rows=False,
+                     both=False):
         """
         Using a dataframe of samples to exclude/include (or a file containing one), create new MethodComparator only without/with those rows.
         filtering_cols - Sequence of column names to use for filtering (e.g., ['Site', 'SampleID', 'Investigator', 'Method']),
                          else infer from the filtering df.
-        include_rows - Change to True so resulting df will have only samples included in the filtering_source, instead of those that don't.
+        include_rows - Change to True so resulting df will have only samples included in the filtering_source, instead of those that don't  (overwrites both).
+        both - Change to True to get both the MethodComparator where specified samples excluded and the one with only those samples included.
+             - need to test this functionality in future
         """
         df2 = filtering_source if isinstance(filtering_source, pd.DataFrame) else sb.raw_to_df(filtering_source)
+        if df2.empty:
+            print(f'\033[34mNothing to filter out!\033[0m')
+            return self
         if not filtering_cols:
             filtering_cols = set(df2.columns)
             # if want to use "FileName" as one of filtering columns, define filtering_cols directly and use DataFrame for filtering_source
             filtering_cols.discard("FileName")
 
         df1 = self.df.copy()
-        common = list(set(df1.columns) & filtering_cols)  # columns existing in both
+        common = list(set(df1.columns) & set(filtering_cols))  # columns existing in both
 
         df1_com = df1[common]
         df2_com = df2[common]
 
-        # for cases where SampleID is int in one df and str in other
+        # for cases where SampleID is int in one df and str in other, try converting df2's SampleID formats to df1's
+        # will need re-adjusting once SampleID which are not just numbers with zeros before
         if pd.api.types.is_numeric_dtype(df2_com['SampleID'].dtype) and not pd.api.types.is_numeric_dtype(df1_com['SampleID'].dtype):
-            df2_com["SampleID"] = df2_com["SampleID"].astype(str).str.zfill(len(df1_com.loc[0, "SampleID"]))
+            df2_com = df2_com[df2_com["SampleID"].notna()]
+            num0s = len(df1_com["SampleID"].astype(str).iloc[0])
+            ids_in_format = df2_com["SampleID"].astype(int).astype(str).str.zfill(num0s)
+            df2_com = df2_com.assign(SampleID=ids_in_format)
 
         # Build a set-like MultiIndex of unique df2 keys, test membership for df1
         keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())
         mask = pd.MultiIndex.from_frame(df1_com).isin(keys_df2)  # samples appearing in both are in True
-        mask = ~mask if not include_rows else mask
+
+        if both:
+            incl_df = df1.loc[mask].copy()
+            exclude_df = df1.loc[~mask].copy()
+            return MethodComparator(incl_df, self.measurement_col), MethodComparator(exclude_df, self.measurement_col)
+
+        mask = mask if include_rows else ~mask
         out_df = df1.loc[mask].copy()
 
         # return a new MethodComparator with filtered rows
         return MethodComparator(out_df, self.measurement_col)
 
-    def export_comparison_matrix(self, out_path=None, **kwargs) -> pd.DataFrame:
-        # user can include needed_vals both and needed_grades (both need to be Iterable[str]),
-        # to ask for values for some variables and grades for others
-        if 'needed_vals' in kwargs and 'needed_grades' in kwargs:
-            # create kwargs for needed values
-            val_kwargs = kwargs
-            val_kwargs.update({'needed_vars': kwargs["needed_vals"], 'value_col': "Value"})
-            val_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **val_kwargs)
 
-            # create kwargs for needed values
-            grade_kwargs = kwargs
-            grade_kwargs.update({'needed_vars': kwargs["needed_grades"], 'value_col': "Grade"})
-            grade_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **grade_kwargs)
+    def only_when_cond(self,
+                       condition: str,
+                       filtering_cols: Optional[Union[str, List[str]]] = ['Site', 'SampleID', 'Investigator', 'Method'],
+                       non_filtered_vars: Optional[Union[str, List[str]]] = None):
+        """
+        Create a new MethodComparator with only samples/cases for which condition (on specific variables) is true.
+        condition - expression from the type passed to DataFrame.query
+        filtering_cols - defining 'case' as combination of columns' values
+        non_filtered_vars - variables (from Variable column) for which results will be kept even for excluded cases.
+            # need to add non_filtered_vars functionality in future
+        """
+        try:
+            # get cases for which condition applies
+            needed_cases = self.apply_to_df(function='query', expr=condition, inplace=False)
+        except (SyntaxError, ValueError, pd.errors.UndefinedVariableError) as e:
+            raise ValueError(f"\033[91mQuery expression {condition} raised error: {e}") from e
+            print(f'\033[91mInvalid condition string: {e}\033[0m')
 
-            row_identifiers = kwargs.get('row_identifiers', ("SampleID", "Site"))
-            wide_df = pd.merge(val_df, grade_df, on=row_identifiers, how='outer')
-        else:
-            wide_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **kwargs)
+        # all rows of original df belonging to wanted samples/cases
+        print(f'\033[34m{len(needed_cases.df)} fill condition: {condition}\033[0m')
+        out_mc = self.filter_by_df(filtering_source=needed_cases.df, filtering_cols=filtering_cols, include_rows=True)
 
-        if out_path:
-            sb.write_df_to_file(wide_df, out_path)
-        return wide_df
+        # return a new MethodComparator with filtered rows
+        return out_mc
 
-    def clean_calculations(self):
-        self.results = {}
-        self.metrics = {}
+
+    def filter_by_unclass(self, unclass='Unclassified WBC', threshold=10,
+                          **kwargs):
+        """
+        Create a new MethodComparator with only cases for which unclass<threshold.
+        unclass : str
+            Variable name (appearing in the 'Variable' column) for which
+        possible kwargs: filtering_cols, non_filtered_vars
+        """
+        cond = f"Variable == '{unclass}' and Value < {threshold}"
+        return self.only_when_cond(condition=cond)
+
 
     def apply_to_df(self, function: str, *args, inplace=False, **kwargs):
         # still needs testing, use 'Pythonic method delegation' for improvements
@@ -250,6 +278,34 @@ class MethodComparator:
         else:
             # For Series, scalars, or other objects — just return as-is
             return result
+
+
+    def export_comparison_matrix(self, out_path=None, **kwargs) -> pd.DataFrame:
+        # user can include needed_vals both and needed_grades (both need to be Iterable[str]),
+        # to ask for values for some variables and grades for others
+        if 'needed_vals' in kwargs and 'needed_grades' in kwargs:
+            # create kwargs for needed values
+            val_kwargs = kwargs
+            val_kwargs.update({'needed_vars': kwargs["needed_vals"], 'value_col': "Value"})
+            val_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **val_kwargs)
+
+            # create kwargs for needed values
+            grade_kwargs = kwargs
+            grade_kwargs.update({'needed_vars': kwargs["needed_grades"], 'value_col': "Grade"})
+            grade_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **grade_kwargs)
+
+            row_identifiers = kwargs.get('row_identifiers', ("SampleID", "Site"))
+            wide_df = pd.merge(val_df, grade_df, on=row_identifiers, how='outer')
+        else:
+            wide_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **kwargs)
+
+        if out_path:
+            sb.write_df_to_file(wide_df, out_path)
+        return wide_df
+
+    def clean_calculations(self):
+        self.results = {}
+        self.metrics = {}
 
     def _col_from_ids(self, ids, mthd, variable, column):
         """
@@ -544,8 +600,8 @@ class MethodComparator:
                 reg_strngs.append(f"{stats.r2:.2f}")
 
             row = {
-                "ref_method": ref_method,
-                "test_method": test_method,
+                "Ref Method": ref_method,
+                "Test Method": test_method,
                 "Variable": variable,
                 "Site": site,
                 "N": stats.n,
@@ -564,7 +620,7 @@ class MethodComparator:
         # to do (long term) - merge this and results_to_dataframe functions
         """
         Convert MethodComparator.results to a DataFrame.
-        Expects results argument to be a dict with {key: {..., "biases": dict}}.
+        Expects results attribute to be a dict with {key: {..., "biases": dict}}.
         """
         results = self.results
         rows = []
@@ -586,7 +642,7 @@ class MethodComparator:
                         bias_str = f"{pnt_est:.2f}\n({bottom:.2f}-{top:.2f})"
                     bias_strngs.append(bias_str)
                 row = {
-                        "Reference Method": ref,
+                        "Ref Method": ref,
                         "Test Method": test,
                         "Variable": var,
                         "Sites": sites,
@@ -598,7 +654,46 @@ class MethodComparator:
 
         return pd.DataFrame(rows)
 
-    def save_results(self, filepath: str, txt_form: bool = True, result_type: str = "reg") -> None:
+    def metrics_to_dataframe(self) -> pd.DataFrame:
+        """
+        Convert MethodComparator.metrics to a DataFrame.
+        Expects metrics attribute to be a dict with
+        {key: {...,
+               "mtr":{
+                    "sensitivity": {"value": ..., "ci": (x1, x2)}, ...
+                    "tp": ...}}}.
+        """
+        rows = []
+        for key, val in self.metrics.items():
+            ref_method, test_method, variable, site = key
+            mtrcs = val["mtr"]
+
+            mtrcs_strngs = []
+            for mtr_name in ['sensitivity', 'specificity', 'agreement']:
+                mtr_dict = mtrcs[mtr_name]
+                pnt_est = mtr_dict['value']
+                if math.isnan((pnt_est)):
+                    mtrcs_strngs.append("NA")
+                else:
+                    pnt_est = pnt_est * 100
+                    bottom = mtr_dict['ci'][0] * 100
+                    top = mtr_dict['ci'][1] * 100
+                    mtrcs_strngs.append(f"{pnt_est:.1f}\n({bottom:.1f}-{top:.1f})")
+
+            row = {
+                "Ref Method": ref_method,
+                "Test Method": test_method,
+                "Variable": variable,
+                "Site": site,
+                "N": len(val["x"]),
+                "Sensitivity": mtrcs_strngs[0],
+                "Specificity": mtrcs_strngs[1],
+                "Ageement": mtrcs_strngs[2],
+                "TP": mtrcs["tp"], "TN": mtrcs["tn"], "FN": mtrcs["fn"], "FP": mtrcs["fp"]}
+            rows.append(row)
+        return pd.DataFrame(rows)
+
+    def save_results(self, filepath: str, result_type: str = "reg") -> None:
         """
         Save MethodComparator.results to CSV or Excel.
         """
@@ -606,9 +701,14 @@ class MethodComparator:
             df = self.regressions_to_dataframe()
         elif result_type in ["bias", "Bias"]:
             df = self.biases_to_dataframe()
+        elif result_type in ["senspe", "SenSpe", "binary", "Binary"]:
+            df = self.metrics_to_dataframe()
         else:
             raise ValueError(f"{result_type} result_type not supported")
-        sb.write_df_to_file(df, filepath)
+        if isinstance(filepath, (str, os.PathLike)):
+            sb.write_df_to_file(df, filepath)
+        else:
+            return df
 
     def plot_all_regressions(self, pdf_path: str, *, style: Dict = None, scatter_kwargs: Dict = None, overlay_kwargs: Dict = None):
         # to do: add option where pdf_path=None, in which case plots are shown directly

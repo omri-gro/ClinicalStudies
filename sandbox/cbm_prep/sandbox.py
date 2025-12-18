@@ -272,10 +272,10 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None, **kwargs):
     try:
         if ext in ['.xlsx', '.xls']:
             df = pd.read_excel(filepath, sheet_name=sheet_name)
-            print(f"Loaded Excel file: {filepath}")
+            # print(f"Loaded Excel file: {filepath}")
         elif ext == '.csv':
             df = pd.read_csv(filepath, **kwargs)
-            print(f"Loaded CSV file: {filepath}")
+            # print(f"Loaded CSV file: {filepath}")
         else:
             raise ValueError(f"\033[93mUnsupported file format: {ext}\033[0m")
     except Exception as e:
@@ -752,12 +752,12 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None, to_100
     multiplier = 100 if to_100 else 1
     for var in diff_vars:
         df[var] = multiplier * df[var] / df["_total_WBC"]
-        print(f"Updated '{var}' to percentage of total WBC.")
+        # print(f"Updated '{var}' to percentage of total WBC.")
 
     # Replace additional cells with percentages relative to total WBC
     for var in additional_vars:
         df[var] = multiplier * df[var] / df["_total_WBC"]
-        print(f"Updated '{var}' to percentage of total WBC (additional cell).")
+        # print(f"Updated '{var}' to percentage of total WBC (additional cell).")
 
     # Drop helper column
     df.drop(columns="_total_WBC", inplace=True)
@@ -803,9 +803,6 @@ def diff_from_total(df, metadata, diff_cells="WBC diff", total_count="TotalWBC",
     for var in diff_vars:
         df[var] = multiplier * df[var] / df[total_count]
         df.loc[no_total, var] = pd.NA
-
-
-
 
     return df
 
@@ -999,7 +996,7 @@ def add_mean_investigator(df, mthd='ClV', min_inv=0, mean_inv_name="Mean Investi
     invs_df = df.query(f"Method=='{mthd}' and {val}.notna()")
 
     # only rows with numeric values
-    invs_df[val] = pd.to_numeric(invs_df[val], errors='coerce')
+    invs_df.loc[:, val] = pd.to_numeric(invs_df.loc[:, val], errors='coerce')
     invs_df = invs_df[invs_df[val].notnull()]
 
     # error if same investigator reviewed same sample twice
@@ -1025,8 +1022,8 @@ def add_mean_investigator(df, mthd='ClV', min_inv=0, mean_inv_name="Mean Investi
     means_df['Investigator'] = mean_inv_name
     means_df['Method'] = mthd
     means_df['ValueOrigin'] = 'Mean'
-
-    return pd.concat([df, means_df])
+    out_df = pd.concat([df, means_df])
+    return out_df
 
 
 def pivot_long(df, id_vars=["SampleID", "Site", "Method", "FileName"], value_vars=[]):
@@ -1083,7 +1080,7 @@ def create_derived_variables_long(df, metadata):
         # Filter to component rows
         comp_df = df[df["Variable"].isin(components)].copy()
         if len(comp_df) == 0:
-            print(f'Dataframe does not include any of {components}. The derived variable {derived_var} will not be calculated.')
+            # print(f'Dataframe does not include any of {components}. The derived variable {derived_var} will not be calculated.')
             continue
         comp_df["Value"] = pd.to_numeric(comp_df["Value"], errors='raise')
 

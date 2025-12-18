@@ -969,7 +969,7 @@ variables:
    components:
     - Schistocytes
     - Helmet cells
- RBC Shape:
+ RBC Shape with poiki:
   groups:
    - percent
    - grade
@@ -986,6 +986,27 @@ variables:
     - Ovalocytes
     - Poikilocytes
     - Poikilocytosis
+    - Schistocytes
+    - Sickle cells
+    - Spherocytes
+    - Stomatocytes
+    - Target cells
+    - Tear drop cells
+ RBC Shape no poiki:
+  groups:
+   - percent
+   - grade
+   - RBC combinations
+   - derived
+  derived_from:
+   components:
+    - Acanthocytes
+    - Bite cells
+    - Blister cells
+    - Burr Cells
+    - Elliptocytes
+    - Helmet cells
+    - Ovalocytes
     - Schistocytes
     - Sickle cells
     - Spherocytes
