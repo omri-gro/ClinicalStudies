@@ -3,11 +3,11 @@ import os
 import sys
 sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\cbm_prep')
 from objects import MethodComparator
-from sandbox import MetadataBundle, read_to_df
+from sandbox import *
 from pipelines import mean_manual_pipe, medium_pipe
 
 if __name__ == "__main__":
-    sites = ['CPG', 'LMU', 'SYN', 'TASMC']
+    sites = ['CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
 
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     min_unclass = 10  # number (0-100) or False   currently doesn't matter, as no such slides sent to manual
     min_wbc = 40  # number or False   currently doesn't matter, as no such slides sent to manual
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
-    diff500 = True
+    diff500 = False
 
     save_name = f'mnl_{crf_ssn}-ssn_minuncls_{min_unclass}_minwbc_{min_wbc}_500diff-{diff500}'
 
@@ -30,58 +30,120 @@ if __name__ == "__main__":
 
     metadata = MetadataBundle(meta_path)
 
-    invstigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
+    invstigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1',
+                        'Sarah Pereira Rodrigues': 'Rev1', 'Maria Buen Viana De Perio': 'Rev1',
                         'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
+                        'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2',
                         'YAEL ASYEGH': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Yael S': 'Rev2', 'Yael Sayegh': 'Rev2',
+                        'Yael S ': 'Rev2',
                         'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
 
     df_srcs_list = []
     for site in sites:
-        df = mean_manual_pipe(f'{site}_manual.csv', site, metadata, dir=r'raw/cbm_method_comparison', only_mean=False)
+        raw_df = raw_to_df(f'{site}_manual.csv', site, "manual", dir=r'raw/cbm_method_comparison')
+        df = stnd_names(raw_df, metadata.alias_map)
+        df = calc_diff(df, metadata, additional_cells="WBC-like")
+        df = pivot_long(df, id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator'])
         df_srcs_list.append(df)
-    cbm_file_name = '5sites_CBM.csv'
-    cbm_df = medium_pipe(cbm_file_name, None, 'CBM', metadata, dir=r'raw/cbm_method_comparison')
-    cbm_df['Investigator'] = 'CBM'
-    df_srcs_list.append(cbm_df)
 
     all_dfs = pd.concat(df_srcs_list)
-    all_dfs['Investigator'] = all_dfs['Investigator'].map(invstigators_map)
-    methd_comp_all_inv = MethodComparator(all_dfs)
-    methd_comp = methd_comp_all_inv.apply_to_df('query', "Investigator=='Mean Investigator' or Investigator=='CBM'",
-                                                inplace=False)
+    methd_comp = MethodComparator(all_dfs)
 
+    """
     if min_unclass:
         methd_comp.df['Value'] = pd.to_numeric(methd_comp.df['Value'], errors='coerce')
         methd_comp = methd_comp.filter_by_unclass(threshold=min_unclass)
 
     if min_wbc:
-        methd_comp = methd_comp.only_when_cond(f"Variable == 'TotalWBC' and Value >= {min_wbc}")
+        methd_comp = methd_comp.only_when_cond(f"Variable == 'Total WBC' and Value >= {min_wbc}")
+    """
 
-    vars_to_test = metadata.variable_groups['WBC&PLT compare']
-    grades_to_test = ['scan_id'] + metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
-        'PLT morphology']
-    morph_vals_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups['PLT morphology']
-    print_also = ['Unclassified WBC', "TotalWBC"]
-    vals_to_print = vars_to_test + print_also
-    morph_vals_to_print = morph_vals_to_test + print_also
-
-    rmv_file = 'flt_lists/slides_to_remove.csv'
-    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-    methd_comp = methd_comp.filter_by_df(rmv_df)
 
     if diff500:
         diff500_file = 'flt_lists/500_WBC_mnl_cases.csv'
         diff500_df = read_to_df(diff500_file, file_dir=os.getcwd())
-        diff500_comp_df = methd_comp.filter_by_df(diff500_df, include_rows=True).df.copy()
-
-        cbm_df = methd_comp.only_when_cond("Method=='CBM'").df.copy()
-        diff500_dfs = pd.concat([diff500_comp_df, cbm_df])
-        methd_comp = MethodComparator(diff500_dfs)
+        methd_comp = methd_comp.filter_by_df(diff500_df, include_rows=True)
 
     if crf_ssn == "post":
         rmv_file = 'flt_lists/pre_session_reviews.csv'
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
+
+    # calculate mean investigator
+    df = methd_comp.df
+
+    df = df.query("Value!='--------'")
+
+    df['Investigator'] = df['Investigator'].map(invstigators_map)
+    df = add_mean_investigator(df, 'manual')
+
+    binary_vars = metadata.variable_groups["binary"]
+    raw_grade_cond=lambda d: (
+        d["Method"].isin(['manual'])
+        & d["Variable"].isin(binary_vars)
+    )
+
+    df = add_grade_column(df, metadata, raw_grade_cond=raw_grade_cond)
+    df = add_pos_column(df, metadata)
+    df = df.dropna(subset=["Value", "Grade", "Positive"], how='all')  # drop when neither value or grade in row
+    df = df.dropna(subset=["SampleID"])  # drop when no readable SampleID
+    df = create_derived_variables_long(df, metadata)
+
+
+    cbm_file_name = '6sites_CBM.csv'
+    cbm_df = medium_pipe(cbm_file_name, None, 'CBM', metadata, dir=r'raw/cbm_method_comparison')
+    cbm_df['Investigator'] = 'CBM'
+
+    all_dfs = pd.concat([df, cbm_df])
+    methd_comp = MethodComparator(all_dfs)
+
+    rmv_file = 'flt_lists/slides_to_remove.csv'
+    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
+    methd_comp = methd_comp.filter_by_df(rmv_df)
+
+    vars_to_test = metadata.variable_groups['WBC&PLT compare']
+    grades_to_test = ['scan_id'] + metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
+        'PLT morphology']
+    grades_to_print = grades_to_test + ['ScanID']
+    morph_vals_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups['PLT morphology']
+    print_also = ['Unclassified WBC', "Total WBC"]
+    vals_to_print = vars_to_test + print_also
+    morph_vals_to_print = morph_vals_to_test + print_also
+
+    if exprt_mtrx:
+        methd_comp.export_comparison_matrix(
+            out_path=fr'comp_tables/{save_name}_vals_all_inv.csv',
+            row_identifiers=["Site", "SampleID"],
+            comparison_dims=("Variable", "Method", "Investigator"),
+            needed_vals=vals_to_print,
+            needed_grades=['ScanID'])
+
+        if min_wbc is False:
+            methd_comp.export_comparison_matrix(
+                out_path=fr'comp_tables/{save_name}_grades_all_inv.csv',
+                row_identifiers=["Site", "SampleID"],
+                comparison_dims=("Variable", "Method", "Investigator"),
+                needed_vals=morph_vals_to_test,
+                needed_grades=grades_to_print)
+
+    # binary parameters' sensitivity/specificity
+    if bin_params:
+        if exprt_mtrx:
+            methd_comp.df['Positive'] = methd_comp.df['Positive'].astype(str)
+            methd_comp.export_comparison_matrix(
+                out_path=fr'comp_tables/{save_name}_bin.csv',
+                row_identifiers=["Site", "SampleID"],
+                comparison_dims=("Variable", "Method", "Investigator"),
+                needed_vars=binary_vars,
+                value_col="Positive")
+
+        methd_comp.batch_compare('manual', 'CBM', binary_vars, function='binary')
+        methd_comp.batch_compare('manual', 'CBM', binary_vars, site_filters=sites, function='binary')
+        methd_comp.save_results(rf'results/mnl/{save_name}_bin.csv', result_type="binary")
+
+    # keep only mean investigator
+    methd_comp = methd_comp.apply_to_df('query', "Investigator=='Mean Investigator' or Investigator=='CBM'",
+                                                inplace=False)
 
     if exprt_mtrx:
         methd_comp.export_comparison_matrix(
@@ -89,29 +151,9 @@ if __name__ == "__main__":
             row_identifiers=["Site", "SampleID"],
             comparison_dims=("Variable", "Method"),
             needed_vals=vals_to_print,
-            needed_grades=['scan_id'])
-
-        methd_comp_all_inv.export_comparison_matrix(
-            out_path=fr'comp_tables/{save_name}_vals_all_inv.csv',
-            row_identifiers=["Site", "SampleID"],
-            comparison_dims=("Variable", "Method", "Investigator"),
-            needed_vals=vals_to_print,
-            needed_grades=['scan_id'])
-
-        if min_wbc is False:
-            methd_comp_all_inv.export_comparison_matrix(
-                out_path=fr'comp_tables/{save_name}_grades_all_inv.csv',
-                row_identifiers=["Site", "SampleID"],
-                comparison_dims=("Variable", "Method", "Investigator"),
-                needed_vals=morph_vals_to_test,
-                needed_grades=grades_to_test)
+            needed_grades=['ScanID'])
 
 
-    # binary parameters' sensitivity/specificity
-    if bin_params:
-        binary_vars = metadata.variable_groups["binary"]
-        methd_comp.batch_compare('manual', 'CBM', binary_vars, site_filters=sites, function='binary')
-        methd_comp.save_results(rf'results/mnl/{save_name}_bin.csv', result_type="binary")
 
     methd_comp.batch_fit(['manual'], ['CBM'], vars_to_test)
     methd_comp.batch_fit(['manual'], ['CBM'], vars_to_test, site_filters=sites)

@@ -21,17 +21,17 @@ if __name__ == "__main__":
     inter = True
     comp_with_cbm = True
 
-    min_inv = 2  # False or number
+    min_inv = 0  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
-    rmv_arb = False
+    rmv_arb = True
 
     intr_by_pair = False
 
     save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_arbrmv-{rmv_arb}'
 
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
     inv_names_in_export = True  # if False investigators will appear as Rev1 and Rev2 only
     sites = ['BWH', 'TASMC']
     inv_map = {'Alina': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         df_srcs_list = []
         df_srcs_list.append(df)
 
-    df = medium_pipe(f'5sites_CBM.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
+    df = medium_pipe(f'6sites_CBM.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
                      id_vars=id_vars_cbm)
     df["Investigator"] = test_arm
     df_srcs_list.append(df)
@@ -136,7 +136,7 @@ if __name__ == "__main__":
                                                 row_identifiers=["Site", "SampleID"],
                                                 comparison_dims=("Variable", "Method", "Investigator"),
                                                 needed_vals=vars_to_print,
-                                                needed_grades=['scan_id'])
+                                                needed_grades=['ScanID'])
 
         # comparison of CBM will be only with MeanInvestigator
         methd_comp = methd_comp.apply_to_df('query', f"Investigator=='Mean Investigator' or Investigator=='{test_arm}'", inplace=False)
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                                                 row_identifiers=["Site", "SampleID"],
                                                 comparison_dims=("Variable", "Method"),
                                                 needed_vals=vars_to_print,
-                                                needed_grades=['scan_id'])
+                                                needed_grades=['ScanID'])
 
         methd_comp.batch_fit(ref_arm, test_arm, vars_to_test)
         methd_comp.batch_fit(ref_arm, test_arm, vars_to_test, site_filters=by_list)

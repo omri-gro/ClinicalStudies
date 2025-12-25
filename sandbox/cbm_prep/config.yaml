@@ -267,7 +267,7 @@ variables:
   aliases:
    - Smudge cell
    - Smudge Cells
-   - Smudge Cells*
+   - Smudge Cells* 
    - smudge cell
    - smudge_cell_percentage
   groups:
@@ -323,7 +323,7 @@ variables:
    - WBC morphology
    - density
    - binary
-  normal_range: [0, 0.5]
+  normal_range: [0, 1]
  Auer Rods:
   aliases:
    - AUER RODS PRESENT
@@ -336,7 +336,7 @@ variables:
    - WBC morphology
    - density
    - binary
-  normal_range: [0, 0.5]
+  normal_range: [0, 1]
  PLT:
   aliases:
    - Platelet Estimate
@@ -363,7 +363,7 @@ variables:
    - PLT morphology
    - density
    - binary
-  normal_range: [0, 0.5]
+  normal_range: [0, 5]
  Satellitisms:
   aliases:
    - PLT SATELLITISM NOTED ON SMEAR
@@ -374,7 +374,7 @@ variables:
    - PLT morphology
    - density
    - binary
-  normal_range: [0, 0.1]
+  normal_range: [0, 5]
  Giant Platelet:
   aliases:
    - GIANT PLT'S NOTED ON SMEAR
@@ -450,8 +450,8 @@ variables:
    - RBC morphology - size (graded 0-3) [Anisocytosis]
   groups:
    - RBC morphology
-   - RBC size
    - grade
+   - RBC size
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]
@@ -716,7 +716,7 @@ variables:
    - density
    - grade
    - RBC arrangement
-  normal_range: [0, 1]
+  normal_range: [0, 5]
  Rouleaux:
   aliases:
    - rouleaux
@@ -727,7 +727,7 @@ variables:
    - density
    - grade
    - RBC arrangement
-  normal_range: [0, 1]
+  normal_range: [0, 5]
  Schistocytes:
   aliases:
    - Schistocytes (RBC Fragments)
@@ -885,7 +885,6 @@ variables:
   groups:
    - WBC diff
    - percent
-   - WBC&PLT compare
    - derived
   derived_from:
    components:
@@ -899,7 +898,6 @@ variables:
   groups:
    - WBC diff
    - percent
-   - WBC&PLT compare
    - derived
   derived_from:
    components:
@@ -911,7 +909,6 @@ variables:
   groups:
    - WBC diff
    - percent
-   - WBC&PLT compare
    - derived
   derived_from:
    components:
@@ -969,7 +966,7 @@ variables:
    components:
     - Schistocytes
     - Helmet cells
- RBC Shape with poiki:
+ RBC Shape:
   groups:
    - percent
    - grade
@@ -986,27 +983,6 @@ variables:
     - Ovalocytes
     - Poikilocytes
     - Poikilocytosis
-    - Schistocytes
-    - Sickle cells
-    - Spherocytes
-    - Stomatocytes
-    - Target cells
-    - Tear drop cells
- RBC Shape no poiki:
-  groups:
-   - percent
-   - grade
-   - RBC combinations
-   - derived
-  derived_from:
-   components:
-    - Acanthocytes
-    - Bite cells
-    - Blister cells
-    - Burr Cells
-    - Elliptocytes
-    - Helmet cells
-    - Ovalocytes
     - Schistocytes
     - Sickle cells
     - Spherocytes
@@ -1110,4 +1086,30 @@ variables:
    - total_differential_count
   groups:
    - derived
+ RBC Analysis Area:
+  aliases:
+   - rbc_area_hpf
+ Clump Search Area:
+  aliases:
+   - clump_area_hpf
+ ScanID:
+  aliases:
+   - scan_id
+   - Scan UUID
 
+
+Source fixes:  # to do: change script so as to have keys be tuples of site and method
+ (CPG, OMR):
+  fill_nans_rules:
+   - target: WBC diff
+   - target: WBC-like
+   - target: PLT morphology
+     condition_column: RBC & PLT Morphology         # morphologies read as 0 only where 'RBC & PLT Morphology' is specified field
+     condition_values: ["Reviewed", "Unremarkable"]
+   - target: RBC morphology
+     condition_column: RBC & PLT Morphology
+     condition_values: ["Reviewed", "Unremarkable"]
+  raw_given_as_grade: ["PLT morphology", "RBC morphology", "WBC morphology"]
+
+ (BWH, Manual):
+  raw_given_as_grade: ["PLT morphology", "Dohle Bodies"]

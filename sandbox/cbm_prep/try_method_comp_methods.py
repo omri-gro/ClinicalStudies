@@ -103,6 +103,7 @@ if __name__ == "__main__":
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
 
+
     methd_comp.batch_fit(ref_arm, test_arm, vars_to_test)
     methd_comp.batch_fit(ref_arm, test_arm, vars_to_test, site_filters=sites)
 

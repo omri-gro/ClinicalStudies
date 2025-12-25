@@ -25,7 +25,7 @@ if __name__ == "__main__":
     save_name = f'clv_cbm_agg_without_scratched'
 
 
-    meta_path = r'config_agg.yaml'
+    meta_path = r'special_config_files/config_agg.yaml'
     cur_dir = os.path.abspath(os.path.dirname(__file__))
 
     metadata = MetadataBundle(meta_path)

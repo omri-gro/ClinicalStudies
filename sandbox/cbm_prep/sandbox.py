@@ -4,13 +4,13 @@ import os
 import re
 import yaml
 import matplotlib.pyplot as plt
-from typing import List, Iterable, Mapping, Optional, Sequence, Union, Tuple
+from typing import List, Iterable, Mapping, Optional, Sequence, Union, Tuple, Literal
 from matplotlib.backends.backend_pdf import PdfPages
 from pathlib import Path
 
-"""
-creating derived_df that is a pivoted dataframe with row for each measurement (parameter, sample, site, method combination)
-"""
+import sys
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
+from table_integrity import *
 
 
 class MetadataBundle:  # to do: add attribute for thresholds & grades?
@@ -24,11 +24,8 @@ class MetadataBundle:  # to do: add attribute for thresholds & grades?
         self.crit_points = self.build_lists_map(self.variables, keyword="crit_points")  # to do: add functionality where critical points are defined by grading thresholds if one is provided and the other isn't.
         self.normal_ranges = self.build_lists_map(self.variables, keyword="normal_range")  # notice this currently doesn't directly require exactly 2 values in normal_range
         self.grading_specs = self.building_grading_specs(self.variables)
-
         self.src_fixes = self.build_src_fixes(context)
-
         self.pregraded_index = self.build_pregraded_index()
-
 
     def build_alias_map(self, variables):
         alias_map = {}
@@ -167,93 +164,93 @@ def _round_df(df: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
     return out
 
 
-def robust_dup(
-        df: pd.DataFrame,
-        key_cols: Sequence[str],
-        on_duplicates: str = "error"  # "error" | "first" | "last" | "mean" | "median" | "sum" | "count" | "any" | "all"
-) -> pd.DataFrame:
-    """
-    If duplicates exist according to key_cols, resolves them per on_duplicates.
-    Notice functionality previously covered by aggfunc in pandas' pivot_table not added yet.
-    """
-    dup_mask = df.duplicated(subset=key_cols, keep=False)
-
-    if not dup_mask.any():
-        return df
-
-    sort_col = ["Variable", "SampleID"] if "Variable" in df.columns and "SampleID" in df.columns else "n"
-    dup_keys = (
-        df.loc[dup_mask, key_cols]
-        .value_counts()
-        .rename("n")
-        .reset_index()
-        .sort_values(sort_col, ascending=False)
-    )
-
-    dup_report_str = "Duplicate entries found for pivot keys.\n" \
-                     f"Examples:\n{dup_keys.head(5).to_string(index=False)}"
-
-    if on_duplicates == "error":
-        raise ValueError(dup_report_str)
-    else:
-        print(dup_report_str)
-
-    if on_duplicates in {"first", "last"}:  # to do - add option for 'none' using keep=True in drop_duplicates
-        return df.drop_duplicates(subset=key_cols, keep=on_duplicates)
-
-
-def safe_pivot(
-        df: pd.DataFrame,
-        index: Sequence[str],
-        columns: Sequence[str],
-        values: str,
-        sort_by: Optional[Sequence[str]] = None,   # e.g., ["ReviewDate","Investigator"]
-        on_duplicates: str = "error",   # "error" | "first" | "last" | "mean" | "median" | "sum" | "count" | "any" | "all"
-        ascending: Union[bool, Sequence[bool]] = True
-) -> pd.DataFrame:
-    """ Pivot with robust duplicate handling. """
-    if sort_by:
-        df = df.sort_values(sort_by, ascending=ascending, kind="mergesort")
-
-    # duplicate probe
-    key_cols = list(index) + list(columns)
-
-    post_dup_df = robust_dup(df, key_cols, on_duplicates)
-
-    """
-    dup_mask = df.duplicated(subset=key_cols, keep=False)
-
-    # replace this section with the new robust_dup function
-    if not dup_mask.any():
-        return df.pivot(index=index, columns=columns, values=values)
-
-    dup_keys = (
-        df.loc[dup_mask, key_cols]
-        .value_counts()
-        .rename("n")
-        .reset_index()
-        .sort_values("n", ascending=False)
-    )
-
-    dup_report_str = "Duplicate entries found for pivot keys.\n" \
-                     f"Examples:\n{dup_keys.head(5).to_string(index=False)}"
-
-    if on_duplicates == "error":
-        raise ValueError(dup_report_str)
-    else:
-        print(dup_report_str)
-
-    if on_duplicates in {"first", "last"}:
-        # keep first/last row within each key group (deterministic due to pre-sort)
-        dedup = (df.drop_duplicates(subset=key_cols, keep=on_duplicates))
-        return dedup.pivot(index=index, columns=columns, values=values)
-
-    return df.pivot_table(index=index, columns=columns, values=values, aggfunc=on_duplicates, observed=True)
-    """
-    if on_duplicates in {"error", "first", "last"}:
-        return post_dup_df.pivot(index=index, columns=columns, values=values)
-    else:
-        return post_dup_df.pivot_table(index=index, columns=columns, values=values, aggfunc=on_duplicates, observed=True)
+# def robust_dup(
+#         df: pd.DataFrame,
+#         key_cols: Sequence[str],
+#         on_duplicates: str = "error"  # "error" | "first" | "last" | "mean" | "median" | "sum" | "count" | "any" | "all"
+# ) -> pd.DataFrame:
+#     """
+#     If duplicates exist according to key_cols, resolves them per on_duplicates.
+#     Notice functionality previously covered by aggfunc in pandas' pivot_table not added yet.
+#     """
+#     dup_mask = df.duplicated(subset=key_cols, keep=False)
+#
+#     if not dup_mask.any():
+#         return df
+#
+#     sort_col = ["Variable", "SampleID"] if "Variable" in df.columns and "SampleID" in df.columns else "n"
+#     dup_keys = (
+#         df.loc[dup_mask, key_cols]
+#         .value_counts()
+#         .rename("n")
+#         .reset_index()
+#         .sort_values(sort_col, ascending=False)
+#     )
+#
+#     dup_report_str = "Duplicate entries found for pivot keys.\n" \
+#                      f"Examples:\n{dup_keys.head(5).to_string(index=False)}"
+#
+#     if on_duplicates == "error":
+#         raise ValueError(dup_report_str)
+#     else:
+#         print(dup_report_str)
+#
+#     if on_duplicates in {"first", "last"}:  # to do - add option for 'none' using keep=True in drop_duplicates
+#         return df.drop_duplicates(subset=key_cols, keep=on_duplicates)
+#
+#
+# def safe_pivot(
+#         df: pd.DataFrame,
+#         index: Sequence[str],
+#         columns: Sequence[str],
+#         values: str,
+#         sort_by: Optional[Sequence[str]] = None,   # e.g., ["ReviewDate","Investigator"]
+#         on_duplicates: str = "error",   # "error" | "first" | "last" | "mean" | "median" | "sum" | "count" | "any" | "all"
+#         ascending: Union[bool, Sequence[bool]] = True
+# ) -> pd.DataFrame:
+#     """ Pivot with robust duplicate handling. """
+#     if sort_by:
+#         df = df.sort_values(sort_by, ascending=ascending, kind="mergesort")
+#
+#     # duplicate probe
+#     key_cols = list(index) + list(columns)
+#
+#     post_dup_df = robust_dup(df, key_cols, on_duplicates)
+#
+#     """
+#     dup_mask = df.duplicated(subset=key_cols, keep=False)
+#
+#     # replace this section with the new robust_dup function
+#     if not dup_mask.any():
+#         return df.pivot(index=index, columns=columns, values=values)
+#
+#     dup_keys = (
+#         df.loc[dup_mask, key_cols]
+#         .value_counts()
+#         .rename("n")
+#         .reset_index()
+#         .sort_values("n", ascending=False)
+#     )
+#
+#     dup_report_str = "Duplicate entries found for pivot keys.\n" \
+#                      f"Examples:\n{dup_keys.head(5).to_string(index=False)}"
+#
+#     if on_duplicates == "error":
+#         raise ValueError(dup_report_str)
+#     else:
+#         print(dup_report_str)
+#
+#     if on_duplicates in {"first", "last"}:
+#         # keep first/last row within each key group (deterministic due to pre-sort)
+#         dedup = (df.drop_duplicates(subset=key_cols, keep=on_duplicates))
+#         return dedup.pivot(index=index, columns=columns, values=values)
+#
+#     return df.pivot_table(index=index, columns=columns, values=values, aggfunc=on_duplicates, observed=True)
+#     """
+#     if on_duplicates in {"error", "first", "last"}:
+#         return post_dup_df.pivot(index=index, columns=columns, values=values)
+#     else:
+#         return post_dup_df.pivot_table(index=index, columns=columns, values=values, aggfunc=on_duplicates, observed=True)
 
 
 """Data import and preparation tools"""
@@ -307,7 +304,7 @@ def raw_to_df(file_name, site=None, method=None, sheet_name='Sheet1', dir=None):
                 return raw_id  # Preserve missing IDs
 
             # Extract trailing number (with optional leading zeros)
-            match = re.search(r"(\d+(?:\.\d+)?)$", str(raw_id))
+            match = re.search(r"(\d+(?:\.\d+)?)\s*$", str(raw_id))
             if match:
                 # numeric_part = match.group(1).lstrip("0") or "0"  # Preserve 0 if all zeros - delete this if the next line works for stripping 0s
                 numeric_part = match.group(1)
@@ -320,11 +317,11 @@ def raw_to_df(file_name, site=None, method=None, sheet_name='Sheet1', dir=None):
 
         # check for sampleIDs duplicates
         if no_dup:
-            duplicates = df["SampleID"][df["SampleID"].duplicated()]
+            duplicates = df[id_col][df[id_col].duplicated()]
             if not duplicates.empty:
                 print(f"Duplicate SampleIDs after cleaning: {duplicates.unique()}")
 
-        df["SampleID"] = df["SampleID"].str.zfill(5)  # 45 → 00045
+        df[id_col] = df[id_col].str.zfill(5)  # 45 → 00045
         return df
 
     df = read_to_df(file_name, sheet_name, dir)
@@ -687,13 +684,14 @@ def check_diff_sum(df, metadata, diff_cells="WBC diff", tolerance=5, auto_conver
     return df
 
 
-def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None, to_100=True):
+def calc_diff(df, metadata, diff_cells="WBC diff", total_var="Total WBC", additional_cells=None, to_100=True):
     """
     Convert cell counts to cell differential, with
     Args:
         df (pd.DataFrame): The DataFrame to calculate for.
         metadata (MetadataBundle): Object with variable groups metadata.
         diff_cells (str or list): Group of cells included in the differential.
+        total_var (str): Name of new column that will include the total of the diff_cells variables.
         additional_cells (str or list, optional): Group of cells to be converted to percentage according to the totalcells in diff_cells.
         to_100 (bool, optional): If true will calculate percetange values by 100 (so 100% is 100 instead of 1).
         # consider adding option when diff_cells are already percentages and only additional cells need conversion to percentages (given the total WBC variable).
@@ -746,25 +744,22 @@ def calc_diff(df, metadata, diff_cells="WBC diff", additional_cells=None, to_100
         return df_orig
 
     # Calculate total WBC count (sum of diff cells)
-    df["_total_WBC"] = df[diff_vars].sum(axis=1, skipna=True)
+    df[total_var] = df[diff_vars].sum(axis=1, skipna=True)
 
     # Replace diff cells with percentages
     multiplier = 100 if to_100 else 1
     for var in diff_vars:
-        df[var] = multiplier * df[var] / df["_total_WBC"]
+        df[var] = multiplier * df[var] / df[total_var]
         # print(f"Updated '{var}' to percentage of total WBC.")
 
     # Replace additional cells with percentages relative to total WBC
     for var in additional_vars:
-        df[var] = multiplier * df[var] / df["_total_WBC"]
+        df[var] = multiplier * df[var] / df[total_var]
         # print(f"Updated '{var}' to percentage of total WBC (additional cell).")
-
-    # Drop helper column
-    df.drop(columns="_total_WBC", inplace=True)
 
     return df
 
-def diff_from_total(df, metadata, diff_cells="WBC diff", total_count="TotalWBC", to_100=True):
+def diff_from_total(df, metadata, diff_cells="WBC diff", total_count="Total WBC", to_100=True):
     """
     Convert cell counts to cell differential when given a TotalCount column.
     Number of cells counted for categories does not need to add up to the TotalCount
@@ -884,7 +879,7 @@ def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle", raw_grade_co
 
 
 def add_pos_column(df_long: pd.DataFrame, meta: "MetadataBundle",
-                   normal_grades=[0, "0", "Normal", "Negative", "normal", "negative"]):
+                   normal_grades=[0, "0", "Normal", "Negative", "normal", "negative", "Not present", "not present"]):
     """
     Adds boolean column for positivity based on normal ranges in MetaDataBundle.
     If grade already exists, treat values in normal_vals as False (negative) and rest as True,
@@ -1137,17 +1132,52 @@ def _default_col_order(df: pd.DataFrame, comparison_dims) -> list[list]:
     return orders
 
 
+def _filter_rows_by_completeness(wide: pd.DataFrame, comparison_dims: list[str], mode: str = "all_cells",):
+    # comparison_dims here only for future proofing in case we add more modes
+    if mode == "any":
+        # keep rows with at least one non-NA anywhere
+        return wide.dropna(axis=0, how="all")
+
+    if mode == "all_cells":
+        # requires all variables to exists (unlikely to be used)
+        return wide.dropna(axis=0, how="any")
+
+    if mode == "all_methods":
+        if not isinstance(wide.columns, pd.MultiIndex):
+            # single comparison dimension → equivalent to all_cells
+            return wide.dropna(axis=0, how="any")
+
+        method_level = wide.columns.names.index("Method")
+
+        # for each method, check row-wise if any column is non-NA
+        per_method_present = (
+            wide
+            .groupby(level=method_level, axis=1)
+            .apply(lambda df_: df_.notna().any(axis=1))
+        )
+
+        # keep rows where ALL methods are present
+        keep_mask = per_method_present.all(axis=1)
+        return wide.loc[keep_mask]
+
+    raise ValueError(f"Unknown row completeness mode: {mode}")
+
+
 def to_comparison_matrix(
         obj_or_df: Union["MethodComparator", pd.DataFrame],
         metadata=None,
         # identifiers that define a datapoint row (only the ones present will be used) - remember to move "Investigator" to here if each investigator in own row
-        row_identifiers: Sequence[str] = ("SampleID", "Site"),
+        row_identifiers: Sequence[str] = ("Site", "SampleID"),
         # which columns define the side-by-side comparison blocks
         comparison_dims: Sequence[str] = ("Variable", "Method", "Investigator"),
         value_col: str = "Value",  # or "Grade"
         needed_vars: Optional[Iterable[str]] = None,   # if None and metadata provided, pull from metadata.variable_groups['percent']
-        require_complete_cases: bool = True,           # only keep rows where all comparison cells are present (no NaNs)
-        drop_na_mode: str = "all",  # or "any" if even a single NaN in row is enough to drop it
+        row_completeness: Literal[
+            "any",  # keep if any comparison value exists
+            "all_cells",  # even a single NaN in row is enough to drop it
+            "all_methods"  # require at least one value per Method
+            "none"   # no completeness filtering, keep all rows
+        ] = "all_methods",
         decimals: int = 3,   # will attempt to round any output column possible. Change to non-integer to avoid rounding.
         column_order: Optional[Sequence[Sequence]] = None,  # e.g., [list_of_methods, list_of_investigators]; order applied where dims exist
         flatten_columns: bool = True,  # flatten MultiIndex columns like ('MethodA','Inv1') -> "MethodA|Inv1"
@@ -1192,15 +1222,8 @@ def to_comparison_matrix(
     wide.index.names = list(present_identifiers)
 
     # --- enforce complete cases if requested (ensure true ‘used’ datapoints only) ---
-    # to do: correct require_complete_cases so it requires data in all methods (getting nans in all columns of a single method is enough for dropping) - for simplicity, use a single column that must exist in all methods and sites for this filtering
-    if require_complete_cases:
-        # drop rows with any missing across all comparison cells
-        if isinstance(wide.columns, pd.MultiIndex):
-            subset_cols = wide.columns
-        else:
-            subset_cols = list(wide.columns)
-        wide = wide.dropna(axis=0, how=drop_na_mode, subset=subset_cols)
-
+    if row_completeness != 'none':
+        wide = _filter_rows_by_completeness(wide, comparison_dims=present_comp_dims, mode=row_completeness,)
 
     # --- column reordering by provided order ---
     if not column_order:
@@ -1217,6 +1240,7 @@ def to_comparison_matrix(
             usable_orders.append(order)
 
     # Reindex by product when we still have at least 1 reorder list
+    # need to figure out why this section makes values from 'Positive' column disappear
     if usable_orders:
         try:
             if len(present_comp_dims) == 1:
@@ -1230,7 +1254,7 @@ def to_comparison_matrix(
             # keep current order if mismatch
             pass
 
-    wide = _round_df(wide, decimals)
+    # wide = _round_df(wide, decimals)
 
     # --- optionally flatten columns for friendlier Excel/CSV ---
     if flatten_columns and isinstance(wide.columns, pd.MultiIndex):
@@ -1239,6 +1263,9 @@ def to_comparison_matrix(
 
     # drop empty columns - turn into boolean argument based if needed
     wide = wide.dropna(axis=1, how='all')
+
+    # sort depends row identifiers argument
+    wide = wide.sort_values(by=present_identifiers)
 
     return wide.reset_index()
 

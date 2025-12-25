@@ -295,7 +295,12 @@ class MethodComparator:
             grade_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **grade_kwargs)
 
             row_identifiers = kwargs.get('row_identifiers', ("SampleID", "Site"))
-            wide_df = pd.merge(val_df, grade_df, on=row_identifiers, how='outer')
+            wide_df = pd.merge(val_df, grade_df, on=row_identifiers, how='inner')
+        elif 'needed_grades' in kwargs:
+            # create kwargs for needed values
+            grade_kwargs = kwargs
+            grade_kwargs.update({'needed_vars': kwargs["needed_grades"], 'value_col': "Grade"})
+            wide_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **grade_kwargs)
         else:
             wide_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **kwargs)
 
@@ -347,6 +352,101 @@ class MethodComparator:
 
         return wide[mthd].to_numpy()
 
+
+    def _apply_row_filters(
+            self,
+            df: pd.DataFrame,
+            row_filters: Optional[dict] = None,
+    ) -> pd.DataFrame:
+        """
+            Apply column-based row filters.
+
+            row_filters example:
+                {
+                    "Site": ["A", "B"],
+                    "Method": "OMR",
+                    "Investigator": ["R1", "R2"],  # must use names of column in df as keys
+                    "MCV": lambda s:s > 80         # can use callables, list-like or a single str/bool/float as values
+                }
+        """
+        if not row_filters:
+            return df
+
+        for col, allowed in row_filters.items():
+            if col not in df.columns:
+                raise ValueError(f'Dataframe does not have {col} as column.')
+            if allowed is None:
+                continue
+            if callable(allowed):
+                df = df[allowed(df[col])]
+            else:
+                allowed = sb._ensure_list(allowed)
+                df = df[df[col].isin(allowed)]
+
+        return df
+
+
+    def _prepare_pairwise_arrays(
+            self,
+            level_a: str,
+            level_b: str,
+            variable: str,
+            dim_col: str,
+            measurement_col: str = "Value",
+            row_filters: Optional[dict] = None,
+            on_duplicates: str = "raise",
+            id_cols: Tuple[str, ...] = ("SampleID", "Site"),
+    ) -> Tuple[pd.Series, pd.Series, pd.Series]:
+        """
+        Internal helper: return matched (x, y, ids).
+
+        Parameters:
+            level_a: name of reference review method/first reviewer (e.g., 'OMR', 'Rev1', etc.)
+            level_b: name of test review method/second reviewer (e.g., 'CBM', 'Rev2', etc.)
+            variable: single variable to filter on (e.g., 'Total Neutrophil')
+            measurement_col: column name holding the measurement values
+            row_filter: dictionary to be sent to _apply_row_filters, with keys being names of columns in self.df
+            on_duplicates: either raise error if duplicates of same observation are found, or just take first one
+            id_cols: columns that will be used for identifying x/y pairs
+
+        Returns:
+            x: array of level_a measurements
+            y: array of level_b measurements
+            ids: list of (Site, SampleID) tuples corresponding to each x/y pair
+        """
+        subset = self.df[self.df["Variable"] == variable].copy()
+        subset = self._apply_row_filters(subset, row_filters)
+        subset = subset[subset[dim_col].isin([level_a, level_b])]
+
+        # Uniqueness per (ID, dimension)
+        dup_key = list(id_cols) + [dim_col]
+        dup_mask = subset.duplicated(dup_key, keep=False)
+
+        if dup_mask.any():
+            if on_duplicates == "raise":
+                raise ValueError(f"Duplicate rows per {dup_key}")
+            elif on_duplicates == "first":
+                subset = subset.sort_index().drop_duplicates(dup_key, keep="first")
+
+        pivoted = subset.pivot_table(
+            index=list(id_cols),
+            columns=dim_col,
+            values=measurement_col,
+            aggfunc="first",
+            dropna=False,
+        )
+
+        pivoted = pivoted.dropna(subset=[level_a, level_b])
+
+        x = pivoted[level_a].values
+        y = pivoted[level_b].values
+        ids = pivoted.index.values
+
+        return x, y, ids
+
+
+
+
     def _prepare_arrays(
         self,
         ref_method: str,
@@ -376,7 +476,6 @@ class MethodComparator:
         if not (isinstance(ref_method, str) and isinstance(test_method, str) and isinstance(variable, str) and isinstance(measurement_col, str)):
             raise TypeError('ref_method, test_method, variable and measurement_col should all be strings')
 
-        # note this function actually does same thing as _prepare_arrays method from MethodComparator
         subset = self.df[self.df["Variable"] == variable].copy()
         if site_filter is not None and site_filter is not [None]:
             if isinstance(site_filter, str):
@@ -532,10 +631,13 @@ class MethodComparator:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 
     def batch_compare(self, ref_methods, test_methods, variables,
-                      function='Regression', site_filters=None, **kwargs):
+                      function='Regression',
+
+                      site_filters=None,  # backwards compatibility
+                      **kwargs):
         """Run comparison calculation across many combinations of methods, variables and sites in one call.
         ref_methods, test_methods, variables, site_filters - str, list or None
-        function - 'deming',
+        function - 'deming', 'binary', etc.
         kwargs - sent to calculating function (model, measurement, etc.)
         """
         # if iterated arguments are str or None, convert to list

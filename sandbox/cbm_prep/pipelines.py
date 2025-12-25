@@ -57,7 +57,7 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
     df = pivot_long(df, id_vars=id_vars)
 
     # prepare graded and boolean values
-    grd_params = metadata.variable_groups.get("grade") + metadata.variable_groups.get("grade")
+    grd_params = metadata.variable_groups.get("binary") + metadata.variable_groups.get("grade")
     df = add_grade_column(df, metadata,
                           raw_grade_cond=lambda d: (d["Method"].isin(["OMR", "Manual"]) & d["Variable"].isin(grd_params))
                           )
