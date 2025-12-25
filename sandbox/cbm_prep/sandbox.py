@@ -995,7 +995,7 @@ def add_mean_investigator(df, mthd='ClV', min_inv=0, mean_inv_name="Mean Investi
     invs_df = invs_df[invs_df[val].notnull()]
 
     # error if same investigator reviewed same sample twice
-    invs_df = robust_dup(invs_df, key_cols=inv_subset, on_duplicates='error')
+    invs_df = robust_dup(invs_df, key_cols=inv_subset, on_duplicates='raise')
 
     if min_inv:
         # check number of investigators that reviewed each sample

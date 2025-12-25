@@ -1,6 +1,5 @@
 """ consider splitting into multiple files later """
 
-import sandbox as sb
 import pandas as pd
 from typing import List, Tuple, Optional, Dict, Any, Union, Sequence
 from pathlib import Path
@@ -10,16 +9,18 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 
-# placeholder nutil integrating regression functions
+import sandbox as sb
 import sys
 sys.path.append(r'C:\Users\omrig\PycharmProjects\pythonProject\CBM_verification')
-import reg_types as reg
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
+import reg_types as reg  # placeholder until integrating regression functions
 from dataclasses import dataclass, asdict
 from matplotlib.backends.backend_pdf import PdfPages
 import plotting
 from pipelines import medium_pipe, bma_prep_pipeline
 from stats_sandbox import binary_classification_metrics, binary_classification_metrics_bootstrap
-
+from table_integrity import safe_pivot
+from utils import _ensure_list
 
 @dataclass
 class RegressionResult:
@@ -380,9 +381,8 @@ class MethodComparator:
             if callable(allowed):
                 df = df[allowed(df[col])]
             else:
-                allowed = sb._ensure_list(allowed)
+                allowed = _ensure_list(allowed)
                 df = df[df[col].isin(allowed)]
-
         return df
 
 
@@ -394,8 +394,9 @@ class MethodComparator:
             dim_col: str,
             measurement_col: str = "Value",
             row_filters: Optional[dict] = None,
-            on_duplicates: str = "raise",
             id_cols: Tuple[str, ...] = ("SampleID", "Site"),
+            on_duplicates: str = "raise",
+            sort_by: Optional[Sequence[str]] = None,
     ) -> Tuple[pd.Series, pd.Series, pd.Series]:
         """
         Internal helper: return matched (x, y, ids).
@@ -404,47 +405,38 @@ class MethodComparator:
             level_a: name of reference review method/first reviewer (e.g., 'OMR', 'Rev1', etc.)
             level_b: name of test review method/second reviewer (e.g., 'CBM', 'Rev2', etc.)
             variable: single variable to filter on (e.g., 'Total Neutrophil')
+            dim_col: basis of comparison (usually either "Method" or "Investigator")
             measurement_col: column name holding the measurement values
             row_filter: dictionary to be sent to _apply_row_filters, with keys being names of columns in self.df
-            on_duplicates: either raise error if duplicates of same observation are found, or just take first one
             id_cols: columns that will be used for identifying x/y pairs
+            on_duplicates: behaviour when duplicates exist in self.df on column names in id_cols
+            sort_by: column names to be used when on_duplicates=='first' or 'last'
 
         Returns:
             x: array of level_a measurements
             y: array of level_b measurements
-            ids: list of (Site, SampleID) tuples corresponding to each x/y pair
+            ids: list of tuples of id_cols values corresponding to each x/y pair
         """
         subset = self.df[self.df["Variable"] == variable].copy()
         subset = self._apply_row_filters(subset, row_filters)
         subset = subset[subset[dim_col].isin([level_a, level_b])]
 
-        # Uniqueness per (ID, dimension)
-        dup_key = list(id_cols) + [dim_col]
-        dup_mask = subset.duplicated(dup_key, keep=False)
+        wide = safe_pivot(subset, index=id_cols, columns=dim_col, values=measurement_col,
+                          on_duplicates=on_duplicates, sort_by=sort_by,)
 
-        if dup_mask.any():
-            if on_duplicates == "raise":
-                raise ValueError(f"Duplicate rows per {dup_key}")
-            elif on_duplicates == "first":
-                subset = subset.sort_index().drop_duplicates(dup_key, keep="first")
+        # ensure both levels are present
+        missing_cols = {level_a, level_b} - set(wide.columns)
+        if missing_cols:
+            raise ValueError(f"Missing required levels after pivot: {missing_cols}")
 
-        pivoted = subset.pivot_table(
-            index=list(id_cols),
-            columns=dim_col,
-            values=measurement_col,
-            aggfunc="first",
-            dropna=False,
-        )
+        # keep only complete pairs
+        wide = wide.dropna(subset=[level_a, level_b])
 
-        pivoted = pivoted.dropna(subset=[level_a, level_b])
-
-        x = pivoted[level_a].values
-        y = pivoted[level_b].values
-        ids = pivoted.index.values
+        x = wide[level_a].to_numpy()
+        y = wide[level_b].to_numpy()
+        ids = wide.index
 
         return x, y, ids
-
-
 
 
     def _prepare_arrays(
@@ -536,32 +528,36 @@ class MethodComparator:
 
         return x, y, ids
 
+
     def sen_spe(self,
-                ref_method: str,
-                test_method: str,
+                level_a: str,  # e.g. reference method
+                level_b: str,  # e.g. test method
                 variable: str,
-                site_filter: Optional[List[str]] = None,
+                row_filters: Optional[List[str]] = None,
+                site_filter: Optional[List[str]] = None,  # for backwards compatibility
+                dim_col="Method",
                 measurement_col="Positive",
+                id_cols: Tuple[str, ...] = ("SampleID", "Site"),  # identifiers of datapoints
                 cis=True,
                 **kwargs):
         """
         Calculate sensitivity/specificity for one variable/site/method pair.
         Possible kwargs: m_boot, alpha, random_state.
-        """
         # consider merging this function and fit function
+        """
+        if row_filters is None and site_filter is not None:
+            row_filters = {"Site": site_filter}
 
-        x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter,
-                                         measurement_col=measurement_col, on_duplicates="first")
-
-        if site_filter:
-            site_filter = sb._ensure_list(site_filter)
+        x, y, ids = self._prepare_pairwise_arrays(level_a, level_b, variable, dim_col, row_filters=row_filters,
+                                                  measurement_col=measurement_col, id_cols=id_cols,
+                                                  on_duplicates="first")
 
         if cis:
             result = binary_classification_metrics_bootstrap(x, y, **kwargs)
         else:
             result = binary_classification_metrics(x, y)
 
-        key = (ref_method, test_method, variable, ",".join(site_filter) if site_filter else "All")
+        key = (level_a, level_b, variable, ",".join(row_filters) if row_filters else "All")
         self.metrics[key] = {
             "x": x,
             "y": y,
@@ -573,18 +569,23 @@ class MethodComparator:
 
 
     def fit(self,
-            ref_method: str,
-            test_method: str,
+            level_a: str,  # e.g. reference method
+            level_b: str,  # e.g. test method
             variable: str,
-            site_filter: Optional[List[str]] = None,
             model: Optional[str] = "deming",
-            measurement_col="Value"):
+            row_filters: Optional[List[str]] = None,
+            site_filter: Optional[List[str]] = None,  # for backwards compatibility
+            dim_col="Method",
+            measurement_col="Value",
+            id_cols: Tuple[str, ...] = ("SampleID", "Site"),  # identifiers of datapoint
+            **kwargs):
         """Run regression for one variable/site/method pair."""
+        if row_filters is None and site_filter is not None:
+            row_filters = {"Site": site_filter}
 
-        x, y, ids = self._prepare_arrays(ref_method, test_method, variable, site_filter=site_filter, measurement_col=measurement_col, on_duplicates="first")
-
-        if site_filter:
-            site_filter = sb._ensure_list(site_filter)
+        x, y, ids = self._prepare_pairwise_arrays(level_a, level_b, variable, dim_col, row_filters=row_filters,
+                                                  measurement_col=measurement_col, id_cols=id_cols,
+                                                  on_duplicates="first")
 
         # placeholder regression_func → replace with your real implementation
         stats = reg.regression_comp(x, y, reg_method=model)  # placeholder - replace later with different regression functions
@@ -597,7 +598,7 @@ class MethodComparator:
         else:
             result = RegressionResult(**stats)
 
-        key = (ref_method, test_method, variable, ",".join(site_filter) if site_filter else "All")
+        key = (level_a, level_b, variable, ",".join(site_filter) if site_filter else "All")
         self.results[key] = {
             "x": x,
             "y": y,
@@ -608,7 +609,7 @@ class MethodComparator:
         # add count of positives if possible - need to make this its own method later
         if 'Positive' in self.df.columns:
             if pd.api.types.is_bool_dtype(self.df['Positive']):
-                tst_pos = self._col_from_ids(ids, ref_method, variable, 'Positive')
+                tst_pos = self._col_from_ids(ids, level_a, variable, 'Positive')
                 self.results[key].update({"pos": tst_pos, "pos_count": tst_pos.sum()})
 
         return self.results[key]
@@ -617,10 +618,10 @@ class MethodComparator:
         """Run regression across many combinations of methods, variables and sites in one call."""
         # currently ref_methods, test_methods, variables should be lists, consider option to allow strings as well
 
-        ref_methods = sb._ensure_list(ref_methods)
-        test_methods = sb._ensure_list(test_methods)
-        variables = sb._ensure_list(variables)
-        site_filters = sb._ensure_list(site_filters)
+        ref_methods = _ensure_list(ref_methods)
+        test_methods = _ensure_list(test_methods)
+        variables = _ensure_list(variables)
+        site_filters = _ensure_list(site_filters)
 
         for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
             if ref == test:
@@ -630,32 +631,101 @@ class MethodComparator:
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 
-    def batch_compare(self, ref_methods, test_methods, variables,
-                      function='Regression',
-
-                      site_filters=None,  # backwards compatibility
+    def batch_compare(self,
+                      *,
+                      levels_a,
+                      levels_b,
+                      variables,
+                      comp_func='Regression',
+                      dim_col='Method',
+                      split_by=None,
+                      row_filters=None,
                       **kwargs):
-        """Run comparison calculation across many combinations of methods, variables and sites in one call.
-        ref_methods, test_methods, variables, site_filters - str, list or None
-        function - 'deming', 'binary', etc.
-        kwargs - sent to calculating function (model, measurement, etc.)
         """
-        # if iterated arguments are str or None, convert to list
-        ref_methods = sb._ensure_list(ref_methods)
-        test_methods = sb._ensure_list(test_methods)
-        variables = sb._ensure_list(variables)
-        site_filters = sb._ensure_list(site_filters)
+        Run pairwise comparisons across many combinations of levels, variables, and strata.
 
-        for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
-            if ref == test:
-                continue
-            try:
-                if function in ['Regression', 'regression', 'deming']:   # consider using register decorator if many functions
-                    self.fit(ref, test, var, site_filter=sites, **kwargs)
-                elif function == 'binary':
-                    self.sen_spe(ref, test, var, site_filter=sites, **kwargs)
-            except Exception as e:
-                print(f"Skipping {function} calculation for {var} ({ref} vs {test}, {sites}): {e}")
+        Parameters
+        ----------
+        levels_a, levels_b : str or sequence of str
+            Levels of dim_col to compare pairwise (levels_a being the reference and levels_b being the test).
+
+        variables : str or sequence of str
+            Variables to iterate over (one comparison per variable).
+
+        comp_func : str callable
+            Function performing a single comparison (e.g. self.fit, self.sen_spe),
+            or name of such function 'deming', 'binary', etc.
+            Must accept:
+                level_a, level_b, variable, dim_col, row_filters, **kwargs
+
+        dim_col : str
+            Column defining the comparison dimension (e.g. "Method", "Investigator").
+
+        row_filters : dict, optional
+            Row restriction filters applied *before* stratification.
+            Example: {"Method": "OMR", "Investigator": ["MeanInvestigator", "CBM"]}
+
+        split_by : str or sequence of str, optional
+            Columns whose unique values define separate comparisons.
+            Example: "Site" or ["Site", "Method"].
+
+        kwargs :
+            Passed through to compare_func.
+        """
+        # ---- find callable for wanted function ---
+        if not callable(comp_func):
+            if comp_func in ['Regression', 'regression', 'deming']:
+                comp_func = self.fit
+            elif comp_func == 'binary':
+                comp_func = self.sen_spe
+            else:
+                raise ValueError(f'{comp_func} not appropriate comparison function')
+
+        # ---- normalize inputs ----
+        # if iterated arguments are str or None, convert to list
+        levels_a = _ensure_list(levels_a)
+        levels_b = _ensure_list(levels_b)
+        variables = _ensure_list(variables)
+
+        # ---- base dataframe after row restriction ----
+        df_base = self.df
+        if row_filters:
+            df_base = self._apply_row_filters(df_base, row_filters)
+
+        # ---- generate strata ----
+        if split_by:
+            grouped = df_base.groupby(split_by, dropna=False)
+            strata = list(grouped)
+        else:
+            strata = [(None, df_base)]
+
+        # ---- main loop ----
+        for stratum_key, df_stratum in strata:
+            # build stratum-specific filters
+            if stratum_key is None:
+                stratum_filters = {}
+                stratum_label = "All"
+            else:
+                if len(split_by) == 1:
+                    stratum_key = (stratum_key,)
+                stratum_filters = dict(zip(split_by, stratum_key))
+                stratum_label = ",".join(f"{k}={v}" for k, v in stratum_filters.items())
+
+            # merge row_filters + stratum filters
+            combined_filters = dict(row_filters or {})
+            combined_filters.update(stratum_filters)
+
+            for level_a, level_b, var in product(levels_a, levels_b, variables):
+                if level_a == level_b:
+                    continue
+                try:
+                    comp_func(level_a, level_b, var, dim_col=dim_col, row_filters=combined_filters, **kwargs)
+                except Exception as e:
+                    print(f"[batch_compare] Skipping comparison: "
+                          f"{dim_col} {level_a} vs {level_b}, "
+                          f"variable='{var}', "
+                          f"stratum='{stratum_label}'. "
+                          f"Reason: {e}")
 
 
     def calc_all_biases(self, crit_points_dict):

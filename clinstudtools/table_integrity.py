@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Dict, Any, Union, Sequence
+from typing import Tuple, Optional, Union, Sequence
 import pandas as pd
 
 
@@ -13,8 +13,9 @@ def safe_pivot(df: pd.DataFrame,
     """ Pivot with explicit, deterministic duplicate handling. """
     if sort_by:
         df = df.sort_values(sort_by, ascending=ascending, kind="mergesort")
-    key_cols = list(index) + [columns]
 
+    # Verify uniqueness per ID, and dimension
+    key_cols = list(index) + [columns]
     df_clean = robust_dup(df, key_cols=key_cols, on_duplicates=on_duplicates)
 
     wide = df_clean.pivot(
@@ -22,14 +23,12 @@ def safe_pivot(df: pd.DataFrame,
         columns=columns,
         values=values,
     )
-
     return wide
-
 
 
 def robust_dup(df: pd.DataFrame,
                key_cols: Sequence[str],
-               on_duplicates: str = "error",  # "raise" | "first" | "last" | "none"
+               on_duplicates: str = "raise",  # "raise" | "first" | "last" | "none"
                ) -> pd.DataFrame:
     """ Resolve duplicate rows according to key_cols. """
     if on_duplicates not in {"raise", "first", "last", "none"}:
