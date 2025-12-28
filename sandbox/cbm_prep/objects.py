@@ -13,14 +13,15 @@ import sandbox as sb
 import sys
 sys.path.append(r'C:\Users\omrig\PycharmProjects\pythonProject\CBM_verification')
 sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
-import reg_types as reg  # placeholder until integrating regression functions
+import regressions as reg  # placeholder until integrating regression functions
 from dataclasses import dataclass, asdict
 from matplotlib.backends.backend_pdf import PdfPages
 import plotting
 from pipelines import medium_pipe, bma_prep_pipeline
 from stats_sandbox import binary_classification_metrics, binary_classification_metrics_bootstrap
-from table_integrity import safe_pivot
+from table_integrity import safe_pivot, filter_to_ids
 from utils import _ensure_list
+from comparison_labels import normalize_filter_mapping, format_filter_label
 
 @dataclass
 class RegressionResult:
@@ -98,10 +99,10 @@ class MethodComparator:
         """
         self.df = df.copy()
         self.measurement_col = measurement_col  # currently not used
-        # stores regression results by (ref, test, variable, site)
-        self.results = {}
-        # stores qualitative and semi-quantitative metrics (sensitivity, kappa, etc.) by (ref, test, variable, site)
-        self.metrics = {}
+        # stores regression results
+        self.results = []
+        # stores qualitative and semi-quantitative metrics (sensitivity, kappa, etc.)
+        self.metrics = []
 
     @classmethod
     def from_paths_dict(cls, paths: dict, metadata: sb.MetadataBundle, dir=None, measurement_col='Value',
@@ -313,45 +314,121 @@ class MethodComparator:
         self.results = {}
         self.metrics = {}
 
-    def _col_from_ids(self, ids, mthd, variable, column):
+    def _col_from_ids(
+            self,
+            ids: Union[pd.Index, pd.MultiIndex],
+            *,
+            variable: str,
+            dim_col: str,
+            level: str,
+            column: str,
+            id_cols: Sequence[str] = ("SampleID", "Site"),
+            row_filters: Optional[dict] = None,
+            on_duplicates: str = "raise",
+            sort_by: Optional[Sequence[str]] = None,
+    ) -> np.ndarray:
         """
-        Return array of another column's values (e.g. boolean flags) for matched IDs.
+        Return an array of `column` values for a single `level` of `dim_col`,
+        aligned to the order of `ids` produced by _prepare_pairwise_arrays.
 
         Parameters
         ----------
-        df : pd.DataFrame
-            Original long-format DataFrame.
-        ids : list of (SampleID, Site)  # need to add option Reviewer in ids
-            IDs from _prepare_arrays.
-        mthd : str
-            The method name to extract column for.
-        variable: str
-            The variable used in _prepare_arrays.
-        column : str
-            Column whose values to retrieve (e.g. 'Positive').
+        ids:
+            Index/MultiIndex from _prepare_pairwise_arrays (the wide index).
+            Must correspond to id_cols (e.g. SampleID+Site).
+        variable:
+            Variable name (same as used in _prepare_pairwise_arrays).
+        dim_col:
+            Comparison dimension column (e.g. "Method", "Investigator").
+        level:
+            Level within dim_col to extract for (e.g. "OMR" or "R1").
+        column:
+            Column to retrieve values from (e.g. "Positive").
+        id_cols:
+            The columns used to build ids (must match how ids were created).
+        row_filters:
+            Optional restrictions (e.g. {"Site": ["A","B"], "Method": "manual"}).
+            Note: if row_filters includes dim_col, it should be compatible with `level`.
+        on_duplicates, sort_by:
+            Same semantics as in safe_pivot/robust_dup.
 
         Returns
         -------
-        rtrn_col : np.ndarray
+        np.ndarray aligned to `ids` order.
         """
-        # Build a DataFrame of only those ids and methods
-        # and keep only the column of interest.
+
         df = self.df
-        ids_with_var = [t + (variable, ) for t in ids]
-        sub = df[
-            (df["Method"] == mthd) &
-            (df.set_index(["SampleID", "Site", "Variable"]).index.isin(ids_with_var))
-            ][["SampleID", "Site", "Variable", "Method", column]].copy()
 
-        # Pivot just like in _prepare_arrays
-        wide = sub.pivot(index=["SampleID", "Site", "Variable"],
-                         columns="Method",
-                         values=column)
+        # Filter to the variable and other row filters (but do NOT require the comparison pair)
+        subset = df[df["Variable"] == variable].copy()
+        subset = self._apply_row_filters(subset, row_filters)
 
-        # Align with order of ids from the original result
-        wide = wide.reindex(ids_with_var)
+        # Only the one level we want
+        subset = subset[subset[dim_col] == level]
 
-        return wide[mthd].to_numpy()
+        # Restrict to the ids we care about
+        # Build a temporary index matching id_cols and filter by ids
+        subset = filter_to_ids(subset, ids, id_cols)
+
+        # Pivot to align the requested column (no real "columns" dimension needed since only one level,
+        # but we can keep it consistent by pivoting on dim_col)
+        wide = safe_pivot(
+            subset,
+            index=id_cols,
+            columns=dim_col,
+            values=column,
+            on_duplicates=on_duplicates,
+            sort_by=sort_by,
+        )
+
+        # Reindex to match the order of ids from the original comparison
+        wide = wide.reindex(ids)
+
+        # If the column is missing entirely (no rows for that level), return all NaN
+        if level not in wide.columns:
+            return np.full(shape=(len(ids),), fill_value=np.nan)
+
+        return wide[level].to_numpy()
+
+    # def _col_from_ids(self, ids, mthd, variable, column):
+    #     """
+    #     Return array of another column's values (e.g. boolean flags) for matched IDs.
+    #
+    #     Parameters
+    #     ----------
+    #     df : pd.DataFrame
+    #         Original long-format DataFrame.
+    #     ids : list of (SampleID, Site)  # need to add option Reviewer in ids
+    #         IDs from _prepare_arrays.
+    #     mthd : str
+    #         The method name to extract column for.
+    #     variable: str
+    #         The variable used in _prepare_arrays.
+    #     column : str
+    #         Column whose values to retrieve (e.g. 'Positive').
+    #
+    #     Returns
+    #     -------
+    #     rtrn_col : np.ndarray
+    #     """
+    #     # Build a DataFrame of only those ids and methods
+    #     # and keep only the column of interest.
+    #     df = self.df
+    #     ids_with_var = [t + (variable, ) for t in ids]
+    #     sub = df[
+    #         (df["Method"] == mthd) &
+    #         (df.set_index(["SampleID", "Site", "Variable"]).index.isin(ids_with_var))
+    #         ][["SampleID", "Site", "Variable", "Method", column]].copy()
+    #
+    #     # Pivot just like in _prepare_arrays
+    #     wide = sub.pivot(index=["SampleID", "Site", "Variable"],
+    #                      columns="Method",
+    #                      values=column)
+    #
+    #     # Align with order of ids from the original result
+    #     wide = wide.reindex(ids_with_var)
+    #
+    #     return wide[mthd].to_numpy()
 
 
     def _apply_row_filters(
@@ -557,16 +634,26 @@ class MethodComparator:
         else:
             result = binary_classification_metrics(x, y)
 
-        key = (level_a, level_b, variable, ",".join(row_filters) if row_filters else "All")
-        self.metrics[key] = {
+        record = {
+            # identity / metadata
+            "comparison_dim": dim_col,
+            "level_a": level_a,
+            "level_b": level_b,
+            "variable": variable,
+            "stratum": dict(row_filters or {}),  # includes split_by values
+
+            # data
             "x": x,
             "y": y,
             "ids": ids,
-            "mtr": result
+
+            # result payload
+            "mtr": result,
         }
 
-        return self.results[key]
-
+        # save results
+        self.metrics.append(record)
+        return record
 
     def fit(self,
             level_a: str,  # e.g. reference method
@@ -598,21 +685,37 @@ class MethodComparator:
         else:
             result = RegressionResult(**stats)
 
-        key = (level_a, level_b, variable, ",".join(site_filter) if site_filter else "All")
-        self.results[key] = {
+        record = {
+            # identity / metadata
+            "comparison_dim": dim_col,
+            "level_a": level_a,
+            "level_b": level_b,
+            "variable": variable,
+            "stratum": dict(row_filters or {}),  # includes split_by values
+
+            # data
             "x": x,
             "y": y,
             "ids": ids,
-            "reg": result
+
+            # result payload
+            "reg": result,
         }
 
         # add count of positives if possible - need to make this its own method later
-        if 'Positive' in self.df.columns:
-            if pd.api.types.is_bool_dtype(self.df['Positive']):
-                tst_pos = self._col_from_ids(ids, level_a, variable, 'Positive')
-                self.results[key].update({"pos": tst_pos, "pos_count": tst_pos.sum()})
+        if 'Positive' in self.df.columns and pd.api.types.is_bool_dtype(self.df["Positive"]):
+            ref_pos = self._col_from_ids(
+                ids,
+                variable=variable,
+                dim_col=dim_col,
+                level=level_a,
+                column="Positive",
+                row_filters=row_filters,)
+            record["pos_count"] = int(ref_pos.sum())
 
-        return self.results[key]
+        # save results
+        self.results.append(record)
+        return record
 
     def batch_fit(self, ref_methods, test_methods, variables, site_filters=None, model="deming", measurement_col="Value"):
         """Run regression across many combinations of methods, variables and sites in one call."""
@@ -638,8 +741,8 @@ class MethodComparator:
                       variables,
                       comp_func='Regression',
                       dim_col='Method',
-                      split_by=None,
                       row_filters=None,
+                      split_by=None,
                       **kwargs):
         """
         Run pairwise comparisons across many combinations of levels, variables, and strata.
@@ -686,6 +789,7 @@ class MethodComparator:
         levels_a = _ensure_list(levels_a)
         levels_b = _ensure_list(levels_b)
         variables = _ensure_list(variables)
+        split_by = _ensure_list(split_by)
 
         # ---- base dataframe after row restriction ----
         df_base = self.df
@@ -709,7 +813,7 @@ class MethodComparator:
                 if len(split_by) == 1:
                     stratum_key = (stratum_key,)
                 stratum_filters = dict(zip(split_by, stratum_key))
-                stratum_label = ",".join(f"{k}={v}" for k, v in stratum_filters.items())
+                stratum_label = format_filter_label(stratum_filters)
 
             # merge row_filters + stratum filters
             combined_filters = dict(row_filters or {})
@@ -740,64 +844,95 @@ class MethodComparator:
         if self.results == {}:
             print('No results yet - calculate regressions first and then calculate biases')
             return
-        for key, val in self.results.items():
-            var_name = key[2]
+        for rec in self.results:
+            reg = rec.get("reg")
+            if reg is None:
+                continue
+
+            var_name = rec.get("variable")
             crit_points = crit_points_dict.get(var_name, [])
             if not crit_points:
                 continue
-            biases = sb.calc_bias_at_points(val["reg"], crit_points)
-            self.results[key]["biases"] = biases
+            biases = sb.calc_bias_at_points(reg, crit_points)
+            rec["biases"] = biases
 
+
+    # def regressions_to_dataframe(self) -> pd.DataFrame:
+    #     """
+    #     Convert regressions in MethodComparator.results to a DataFrame.
+    #     Expects results argument to be a dict with {key: {..., "reg": RegressionResult}}.
+    #     """
+    #     rows = []
+    #     for key, val in self.results.items():
+    #         ref_method, test_method, variable, site = key
+    #         stats: RegressionResult = val["reg"]
+    #
+    #         # create printable version of regression results (to do: add this as attribute for RegressionResult)
+    #         if math.isnan(stats.slope) or stats.slope == float('inf') or stats.slope == float('-inf'):
+    #             reg_strngs = ["NA", "NA", "NA"]
+    #         else:
+    #             reg_strngs = []
+    #             for param in ('slope', 'intercept'):
+    #                 pnt_est = getattr(stats, param)
+    #                 bottom = getattr(stats, f'{param}_ci')[0]
+    #                 top = getattr(stats, f'{param}_ci')[1]
+    #                 reg_strngs.append(f"{pnt_est:.2f}\n({bottom:.2f}-{top:.2f})")
+    #             reg_strngs.append(f"{stats.r2:.2f}")
+    #
+    #         row = {
+    #             "Ref Method": ref_method,
+    #             "Test Method": test_method,
+    #             "Variable": variable,
+    #             "Site": site,
+    #             "N": stats.n,
+    #             "Slope": reg_strngs[0],
+    #             "Intercept": reg_strngs[1],
+    #             "R^2": reg_strngs[2],
+    #             "Positives": val.get('pos_count', None)
+    #         }
+    #
+    #         rows.append(row)
+    #
+    #     return pd.DataFrame(rows)
 
     def regressions_to_dataframe(self) -> pd.DataFrame:
         """
         Convert regressions in MethodComparator.results to a DataFrame.
-        Expects results argument to be a dict with {key: {..., "reg": RegressionResult}}.
+        Expects results attribute to be a dict with {key: {..., "reg": RegressionResult}}.
         """
         rows = []
-        for key, val in self.results.items():
-            ref_method, test_method, variable, site = key
-            stats: RegressionResult = val["reg"]
-
-            # create printable version of regression results (to do: add this as attribute for RegressionResult)
-            if math.isnan(stats.slope) or stats.slope == float('inf') or stats.slope == float('-inf'):
-                reg_strngs = ["NA", "NA", "NA"]
+        for rec in self.results:
+            stats: RegressionResult = rec.get("reg")
+            if stats is None:
+                continue
+            if math.isnan(stats.slope) or not np.isfinite(stats.slope):
+                slope_str = intercept_str = r2_str = "NA"
             else:
-                reg_strngs = []
-                for param in ('slope', 'intercept'):
-                    pnt_est = getattr(stats, param)
-                    bottom = getattr(stats, f'{param}_ci')[0]
-                    top = getattr(stats, f'{param}_ci')[1]
-                    reg_strngs.append(f"{pnt_est:.2f}\n({bottom:.2f}-{top:.2f})")
-                reg_strngs.append(f"{stats.r2:.2f}")
+                slope_str = f"{stats.slope:.2f}\n({stats.slope_ci[0]:.2f}-{stats.slope_ci[1]:.2f})"
+                intercept_str = f"{stats.intercept:.2f}\n({stats.intercept_ci[0]:.2f}-{stats.intercept_ci[1]:.2f})"
+                r2_str = f"{stats.r2:.2f}"
 
-            row = {
-                "Ref Method": ref_method,
-                "Test Method": test_method,
-                "Variable": variable,
-                "Site": site,
+            row = self._base_result_row(rec)
+            reg_results = {
                 "N": stats.n,
-                "Slope": reg_strngs[0],
-                "Intercept": reg_strngs[1],
-                "R^2": reg_strngs[2],
-                "Positives": val.get('pos_count', None)
+                "Slope": slope_str,
+                "Intercept": intercept_str,
+                "R^2": r2_str,
+                "Positives": rec.get("pos_count"),
             }
-
+            row.update(reg_results)
             rows.append(row)
-
         return pd.DataFrame(rows)
 
+
     def biases_to_dataframe(self) -> pd.DataFrame:
-        # to do - add argument here and to save_results about whether to save variables like "Sites" and "Test Method"
-        # to do (long term) - merge this and results_to_dataframe functions
         """
-        Convert MethodComparator.results to a DataFrame.
+        Convert biases in MethodComparator.results to a DataFrame.
         Expects results attribute to be a dict with {key: {..., "biases": dict}}.
         """
-        results = self.results
         rows = []
-        for (ref, test, var, sites), res in results.items():
-            biases = res.get("biases", {})
+        for rec in self.results:
+            biases = rec.get("biases", {})
             if not biases:
                 continue
             for point, bias in biases.items():
@@ -813,17 +948,15 @@ class MethodComparator:
                     else:
                         bias_str = f"{pnt_est:.2f}\n({bottom:.2f}-{top:.2f})"
                     bias_strngs.append(bias_str)
-                row = {
-                        "Ref Method": ref,
-                        "Test Method": test,
-                        "Variable": var,
-                        "Sites": sites,
-                        "Critical Point": point,
-                        "Bias": bias_strngs[0],
-                        "%Bias": bias_strngs[1]
-                        }
-                rows.append(row)
 
+                row = self._base_result_row(rec)
+                results = {
+                    "Critical Point": point,
+                    "Bias": bias_strngs[0],
+                    "%Bias": bias_strngs[1]
+                }
+                row.update(results)
+                rows.append(row)
         return pd.DataFrame(rows)
 
     def metrics_to_dataframe(self) -> pd.DataFrame:
@@ -836,9 +969,8 @@ class MethodComparator:
                     "tp": ...}}}.
         """
         rows = []
-        for key, val in self.metrics.items():
-            ref_method, test_method, variable, site = key
-            mtrcs = val["mtr"]
+        for rec in self.metrics:
+            mtrcs = rec["mtr"]
 
             mtrcs_strngs = []
             for mtr_name in ['sensitivity', 'specificity', 'agreement']:
@@ -852,18 +984,31 @@ class MethodComparator:
                     top = mtr_dict['ci'][1] * 100
                     mtrcs_strngs.append(f"{pnt_est:.1f}\n({bottom:.1f}-{top:.1f})")
 
-            row = {
-                "Ref Method": ref_method,
-                "Test Method": test_method,
-                "Variable": variable,
-                "Site": site,
-                "N": len(val["x"]),
+            row = self._base_result_row(rec)
+            results = {
+                "N": len(rec["x"]),
                 "Sensitivity": mtrcs_strngs[0],
                 "Specificity": mtrcs_strngs[1],
                 "Ageement": mtrcs_strngs[2],
                 "TP": mtrcs["tp"], "TN": mtrcs["tn"], "FN": mtrcs["fn"], "FP": mtrcs["fp"]}
+            row.update(results)
             rows.append(row)
         return pd.DataFrame(rows)
+
+    @staticmethod
+    def _base_result_row(rec: dict) -> dict:
+        """
+        Build the common identifying columns for a result record.
+        """
+        comp_dim = rec["comparison_dim"]
+        row = {
+            f"Ref {comp_dim}": rec["level_a"],
+            f"Test {comp_dim}": rec["level_b"],
+            "Variable": rec["variable"],
+        }
+        stratum = normalize_filter_mapping(rec.get("stratum", {}))
+        row.update(stratum)
+        return row
 
     def save_results(self, filepath: str, result_type: str = "reg") -> None:
         """
@@ -915,48 +1060,36 @@ class MethodComparator:
         overlay_kwargs = overlay_kwargs or {}
 
         with PdfPages(pdf_path) as pdf:
-            for data, rslt in self.results.items():
-                xname, yname, varname, site = data
-                if rslt['reg'].r is not None:
-                    plot_title = varname if site == 'All' else f'{varname}\n{site}'
-                    scpc_style = {'title': plot_title, 'xlabel': xname, 'ylabel': yname}
-                    final_style = plotting.merge_styles(base_style, user_style, scpc_style)
+            for rec in self.results:
+                # ---- labels ----
+                comp_dim = rec["comparison_dim"]
+                xname = rec["level_a"]
+                yname = rec["level_b"]
+                varname = rec["variable"]
 
-                    fig, ax = plt.subplots(figsize=final_style.get("figsize", (6, 5)))
-                    fig, ax = plotting.plot_scatter_basic(rslt, style=final_style, fig=fig, ax=ax, **scatter_kwargs)
-                    plotting.overlay_regression_line(fig=fig, ax=ax, result=rslt['reg'], style=final_style, **overlay_kwargs)
-                    pdf.savefig(fig)
-                    plt.close()
+                label = format_filter_label(rec.get("stratum", {}))
+                plot_title = f"{varname}\n{label}" if label else varname
+                scpc_style = {'title': plot_title, 'xlabel': xname, 'ylabel': yname}
+                final_style = plotting.merge_styles(base_style, user_style, scpc_style)
 
-if __name__ == "__main__":
-    analysis_name = 'bwh100_investigator_training'
-    suffix = '_old_version'
-    # suffix = ''
-    save_name = f"{analysis_name}{suffix}"
-    site = 'BWH'
-
-    raw_dir = os.path.abspath(os.path.dirname(__file__))
-    raw_dir = os.path.join(raw_dir, r'raw', analysis_name)
-
-    metadata = sb.MetadataBundle('config.yaml')
-    clv_df_raw = sb.raw_to_df('BWH_ClV%.csv', site, 'Manual', dir=raw_dir)
-    mnl_df_raw = sb.raw_to_df('BWH_manual%.csv', site, 'Manual', dir=raw_dir)
-    cbm_df_raw = sb.raw_to_df(f'BWH_CBM%{suffix}.csv', site, 'CBM', dir=raw_dir)
-
-    clv_df = sb.short_pipe(clv_df_raw, metadata)  # short_pipe moved to pipelines.py
-    mnl_df = sb.short_pipe(mnl_df_raw, metadata)
-    cbm_df = sb.short_pipe(cbm_df_raw, metadata)
-
-    bwh_df = pd.concat([clv_df, mnl_df, cbm_df])
-
-    bwh_df = bwh_df[bwh_df["Value"].notna()]  # remember to include in larger pipeline later
-
-    methd_comp = MethodComparator(bwh_df)
-
-    methd_comp.fit('Manual', 'CBM', 'Segmented Neutrophil')
-    methd_comp.calc_all_biases(metadata.crit_points)
-    methd_comp.save_results(r'results/seg_reg.csv')
-    methd_comp.save_results(r'results/seg_reg.xlsx', result_type='bias')
+                # ---- plotting ----
+                fig, ax = plt.subplots(figsize=final_style.get("figsize", (6, 5)))
+                fig, ax = plotting.plot_scatter_basic(rec, style=final_style, fig=fig, ax=ax, **scatter_kwargs)
+                plotting.overlay_regression_line(data=rec, fig=fig, ax=ax, style=final_style,
+                                                 **overlay_kwargs)
+                pdf.savefig(fig)
+                plt.close()
 
 
-    print('')
+            # for data, rslt in self.results.items():
+            #     xname, yname, varname, site = data
+            #     if rslt['reg'].r is not None:
+            #         plot_title = varname if site == 'All' else f'{varname}\n{site}'
+            #         scpc_style = {'title': plot_title, 'xlabel': xname, 'ylabel': yname}
+            #         final_style = plotting.merge_styles(base_style, user_style, scpc_style)
+            #
+            #         fig, ax = plt.subplots(figsize=final_style.get("figsize", (6, 5)))
+            #         fig, ax = plotting.plot_scatter_basic(rslt, style=final_style, fig=fig, ax=ax, **scatter_kwargs)
+            #         plotting.overlay_regression_line(fig=fig, ax=ax, result=rslt['reg'], style=final_style, **overlay_kwargs)
+            #         pdf.savefig(fig)
+            #         plt.close()

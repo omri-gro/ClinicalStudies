@@ -36,7 +36,7 @@ def robust_dup(df: pd.DataFrame,
 
     report = dup_report(df, key_cols)
     if report is None:
-        return df, None
+        return df
 
     preview = dup_report.head(10).to_string(index=False)
     n_dup_keys = len(report)
@@ -80,5 +80,11 @@ def dup_report(df: pd.DataFrame,
             .rename("count")
             .reset_index()
             .sort_values("count", ascending=False))
+
+
+def filter_to_ids(df, ids, id_cols):
+    idx = df.set_index(list(id_cols)).index
+    return df[idx.isin(ids)]
+
 
 # can add safe_pivot_agg later (likely to different module) if was want to integrate aggfunc from pd's pivot_table

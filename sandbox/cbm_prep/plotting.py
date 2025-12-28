@@ -164,7 +164,7 @@ def plot_scatter_basic(data, style=None, fig=None, ax=None, **_):
     style = style or {}
     if ax is None or fig is None:
         fig, ax = plt.subplots()
-    x, y = _get_xy(data, style.get("xkey", "x"), style.get("ykey", "y"))  # to do: consider finding another way to deal with different xkey instead of 'style'
+    x, y = _get_xy(data, style.get("xkey", "x"), style.get("ykey", "y"))
     ax.scatter(x, y, color=style.get("scatter_color"))
     apply_axes_style(ax, style)
     apply_figure_style(fig, style)
@@ -339,7 +339,7 @@ def overlay_regression_line(
     fig=None,
     ax=None,
     *,
-    result,                 # RegressionResult: has slope, slope_ci, intercept, intercept_ci
+    reg=None,               # RegressionResult: has slope, slope_ci, intercept, intercept_ci
     x=None,                 # optional 1D array; if None uses current x-limits
     n_points: int = 200,    # resolution for drawing the line(s)
     **_,
@@ -349,7 +349,7 @@ def overlay_regression_line(
 
     Parameters
     ----------
-    data : unused (kept for uniform registry signature)
+    data : dictionary which has a 'reg' key, which will be used if reg argument is empty
     style : dict, optional
         Keys (all optional):
           - line_color       : color for regression line (default: palette['fit'] or 'C2')
@@ -365,7 +365,7 @@ def overlay_regression_line(
           - zorder           : zorder for the line (default: None -> matplotlib default)
           - xkey / ykey      : ignored here; present for API symmetry
     fig, ax : existing Matplotlib Figure and Axes (REQUIRED)
-    result : object with attributes:
+    reg : object with attributes:
         - slope (float), intercept (float)
         - slope_ci (tuple[low, high]), intercept_ci (tuple[low, high])  # optional for CI
     x : 1D array-like
@@ -383,11 +383,18 @@ def overlay_regression_line(
         y_high = slope_ci[1] * x + intercept_ci[1]
     This is a visual approximation; a true pointwise CI requires variance/covariance.
     """
-    import numpy as np
-    import matplotlib.pyplot as plt
-
     if fig is None or ax is None:
         raise ValueError("overlay_regression_line requires an existing fig and ax.")
+
+    if reg is None and data is not None:
+        reg = data.get("reg")
+    if reg is None:
+        print(f'\033[91moverlay_regression_line must receive either data or reg argument\033[0m')
+        return fig, ax
+    if getattr(reg, "slope", None) is None or not np.isfinite(reg.slope):
+        print(f'\033[91mSlope not provided or is infinite, regression not plotted\033[0m')
+        return fig, ax
+
 
     style = style or {}
     # colors/palette fallback
@@ -404,7 +411,7 @@ def overlay_regression_line(
         xline = np.linspace(x_min, x_max, n_points)
 
     # Main regression line
-    yline = result.slope * xline + result.intercept
+    yline = reg.slope * xline + reg.intercept
     ax.plot(
         xline,
         yline,
@@ -417,14 +424,14 @@ def overlay_regression_line(
 
     # Confidence interval (optional)
     if style.get("ci", False):
-        if not (hasattr(result, "slope_ci") and hasattr(result, "intercept_ci") and
-                result.slope_ci is not None and result.intercept_ci is not None):
+        if not (hasattr(reg, "slope_ci") and hasattr(reg, "intercept_ci") and
+                reg.slope_ci is not None and reg.intercept_ci is not None):
             # If CI requested but missing, don't crash—just skip.
             # You could also raise if you'd prefer strict behavior.
             pass
         else:
-            m_lo, m_hi = result.slope_ci
-            b_lo, b_hi = result.intercept_ci
+            m_lo, m_hi = reg.slope_ci
+            b_lo, b_hi = reg.intercept_ci
             y_low = m_lo * xline + b_lo
             y_high = m_hi * xline + b_hi
 
