@@ -83,3 +83,21 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
 
     print(f"Loaded {filepath} with shape {df.shape}")
     return df
+
+
+def expect_single(
+    items,
+    *,
+    what: str = "item",
+    context: Union[str, None] = None
+):
+    """
+    Assert that `items` contains exactly one element and return it.
+    """
+    n = len(items)
+    if n != 1:
+        msg = f"Expected exactly one {what}, found {n}"
+        if context:
+            msg += f" ({context})"
+        raise ValueError(msg)
+    return items[0]
