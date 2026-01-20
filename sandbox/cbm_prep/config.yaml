@@ -708,6 +708,7 @@ variables:
  RBC Agglutination:
   aliases:
    - RBC agglutination
+   - Agglutination
    - agglutination
    - agglutination_count
    - RBC morphology - Irregular distribution (graded 0-3) [Agglutination]
@@ -720,6 +721,7 @@ variables:
  Rouleaux:
   aliases:
    - rouleaux
+   - Rouleaux formation
    - rouleaux_formation_count
    - RBC morphology - Irregular distribution (graded 0-3) [Rouleaux formation]
   groups:

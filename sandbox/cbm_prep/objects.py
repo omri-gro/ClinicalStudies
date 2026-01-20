@@ -11,13 +11,13 @@ import matplotlib.pyplot as plt
 
 import sandbox as sb
 import sys
-sys.path.append(r'C:\Users\omrig\PycharmProjects\pythonProject\CBM_verification')
+# sys.path.append(r'C:\Users\omrig\PycharmProjects\pythonProject\CBM_verification')
 sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
 import regressions as reg  # placeholder until integrating regression functions
 from dataclasses import dataclass, asdict
 from matplotlib.backends.backend_pdf import PdfPages
 import plotting
-from pipelines import medium_pipe, bma_prep_pipeline
+from pipelines import medium_pipe, bma_prep_pipeline, mean_manual_pipe
 from stats_sandbox import binary_classification_metrics, binary_classification_metrics_bootstrap
 from table_integrity import safe_pivot, filter_to_ids
 from utils import _ensure_list
@@ -105,8 +105,9 @@ class MethodComparator:
         self.metrics = []
 
     @classmethod
-    def from_paths_dict(cls, paths: dict, metadata: sb.MetadataBundle, dir=None, measurement_col='Value',
-                        more_id_vars=None, stnrd_id=True, bma=False):
+    def from_paths_dict(cls, paths: dict, metadata: sb.MetadataBundle, measurement_col='Value',
+                        more_id_vars=None, bma=False, inv=False, **kwargs):
+        # possible kwargs - dir, stnrd_id, stnrd_id, min_inv, only_mean, filtering_source etc.
         # maybe don't use, might be better to create something like that every time due to all edge cases
 
         # function that gets dict with paths as values and descriptors of method/site/etc as keys
@@ -118,7 +119,7 @@ class MethodComparator:
         # to do: make it possible for the values in paths dict to be a list of multiple paths, instead of a single path
 
         # list of columns that will not be pivoted
-        id_vars = ["SampleID", "Site", "Method", "FileName", 'Investigator'] if bma else ["SampleID", "Site", "Method", "FileName"]
+        id_vars = ["SampleID", "Site", "Method", "FileName", 'Investigator'] if (bma or inv) else ["SampleID", "Site", "Method", "FileName"]
         if isinstance(more_id_vars, list):
             id_vars += more_id_vars
 
@@ -134,9 +135,11 @@ class MethodComparator:
                 else:
                     site = method = reviewer = None
                 if bma:
-                    df = bma_prep_pipeline(path, site, method, metadata, dir=dir, id_vars=id_vars)
+                    df = bma_prep_pipeline(path, site, method, metadata, id_vars=id_vars, **kwargs)
+                elif inv:
+                    df = mean_manual_pipe(path, site, metadata=metadata, method=method, id_vars=id_vars, **kwargs)
                 else:
-                    df = medium_pipe(path, site, method, metadata, dir=dir, id_vars=id_vars, stnrd_id=stnrd_id)
+                    df = medium_pipe(path, site, method, metadata, id_vars=id_vars, **kwargs)
                 df_srcs_list.append(df)
             except Exception as e:
                 print(f'\033[91mError when importing {key}: {e}\033[0m')
@@ -497,17 +500,24 @@ class MethodComparator:
         subset = self.df[self.df["Variable"] == variable].copy()
         subset = self._apply_row_filters(subset, row_filters)
         subset = subset[subset[dim_col].isin([level_a, level_b])]
+        if measurement_col == "Value":   # assumes that functions on the "Value" column are always numeric
+            subset[measurement_col] = pd.to_numeric(subset[measurement_col], errors="coerce")
+
+        subset.dropna(subset=[measurement_col])
 
         wide = safe_pivot(subset, index=id_cols, columns=dim_col, values=measurement_col,
                           on_duplicates=on_duplicates, sort_by=sort_by,)
 
+
         # ensure both levels are present
         missing_cols = {level_a, level_b} - set(wide.columns)
         if missing_cols:
-            raise ValueError(f"Missing required levels after pivot: {missing_cols}")
+            missing_cols_str = ", ".join(f"{item}" for item in missing_cols)
+            raise ValueError(f"Missing {variable} variable for {missing_cols_str}")
 
-        # keep only complete pairs
         wide = wide.dropna(subset=[level_a, level_b])
+        if len(wide) == 0:
+            raise ValueError(f"Missing {variable} variable in either {level_a} or {level_b}")
 
         x = wide[level_a].to_numpy()
         y = wide[level_b].to_numpy()
@@ -659,13 +669,13 @@ class MethodComparator:
             level_a: str,  # e.g. reference method
             level_b: str,  # e.g. test method
             variable: str,
-            model: Optional[str] = "deming",
             row_filters: Optional[List[str]] = None,
             site_filter: Optional[List[str]] = None,  # for backwards compatibility
             dim_col="Method",
             measurement_col="Value",
             id_cols: Tuple[str, ...] = ("SampleID", "Site"),  # identifiers of datapoint
-            **kwargs):
+            **kwargs  # e.g., reg_method, ci, lambda_, etc.
+            ):
         """Run regression for one variable/site/method pair."""
         if row_filters is None and site_filter is not None:
             row_filters = {"Site": site_filter}
@@ -675,7 +685,7 @@ class MethodComparator:
                                                   on_duplicates="first")
 
         # placeholder regression_func → replace with your real implementation
-        stats = reg.regression_comp(x, y, reg_method=model)  # placeholder - replace later with different regression functions
+        stats = reg.regression_comp(x, y, **kwargs)  # placeholder - replace later with different regression functions
         if type(stats) == RegressionResult:
             result = stats
             if result.n is None:
@@ -704,14 +714,17 @@ class MethodComparator:
 
         # add count of positives if possible - need to make this its own method later
         if 'Positive' in self.df.columns and pd.api.types.is_bool_dtype(self.df["Positive"]):
-            ref_pos = self._col_from_ids(
-                ids,
-                variable=variable,
-                dim_col=dim_col,
-                level=level_a,
-                column="Positive",
-                row_filters=row_filters,)
-            record["pos_count"] = int(ref_pos.sum())
+            try:
+                ref_pos = self._col_from_ids(
+                    ids,
+                    variable=variable,
+                    dim_col=dim_col,
+                    level=level_a,
+                    column="Positive",
+                    row_filters=row_filters,)
+                record["pos_count"] = int(ref_pos.sum())
+            except TypeError:
+                pass
 
         # save results
         self.results.append(record)
@@ -730,7 +743,7 @@ class MethodComparator:
             if ref == test:
                 continue
             try:
-                self.fit(ref, test, var, site_filter=sites, model=model, measurement_col=measurement_col)
+                self.fit(ref, test, var, site_filter=sites, reg_method=model, measurement_col=measurement_col)
             except Exception as e:
                 print(f"Skipping {ref} vs {test} ({var}, {sites}): {e}")
 
@@ -797,7 +810,7 @@ class MethodComparator:
             df_base = self._apply_row_filters(df_base, row_filters)
 
         # ---- generate strata ----
-        if split_by:
+        if split_by and split_by != [None]:
             grouped = df_base.groupby(split_by, dropna=False)
             strata = list(grouped)
         else:
@@ -828,7 +841,7 @@ class MethodComparator:
                     print(f"[batch_compare] Skipping comparison: "
                           f"{dim_col} {level_a} vs {level_b}, "
                           f"variable='{var}', "
-                          f"stratum='{stratum_label}'. "
+                          f"{stratum_label}. "
                           f"Reason: {e}")
 
 

@@ -47,8 +47,8 @@ if __name__ == "__main__":
         # need to find way add_mean_investigator's min_inv could handle arbitrator-only samples,
         # maybe split add_mean_investigator into 2-3 steps, or integrate with removed_for_arbitration
         # for now can do this by removing only 1 reviewer cases beforehand
-        ref_df = add_mean_investigator(ref_df, mthd='REF')
-        test_df = add_mean_investigator(test_df, mthd='TEST')
+        ref_df = add_mean_investigator(ref_df, mthd='REF', min_inv=2)
+        test_df = add_mean_investigator(test_df, mthd='TEST', min_inv=2)
 
         # change all SampleIDs to the TEST Barcode based on site's mapping
         id_lookup = df_map.set_index('REF Barcode')['TEST Barcode']
@@ -62,10 +62,12 @@ if __name__ == "__main__":
     methd_comp = methd_comp_all_inv.apply_to_df('query', "Investigator=='Mean Investigator'", inplace=False)
 
 
-    ndc_vars_list = metadata.variable_groups['NDC']
+    ndc_vars_list = metadata.variable_groups['NDC'] + metadata.variable_groups['NDC lineage total']
     needed_rows = methd_comp.df[methd_comp.df['Variable'].isin(ndc_vars_list)]
 
-    comp_table = methd_comp.export_comparison_matrix(needed_vals=ndc_vars_list, comparison_dims=("Variable", "Method", "Investigator"))
+    comp_table = methd_comp.export_comparison_matrix(needed_vals=ndc_vars_list,
+                                                     comparison_dims=("Variable", "Method", "Investigator"),
+                                                     row_completeness="none")
     comp_table.rename(columns={'SampleID': 'TEST Barcode'}, inplace=True)
     id_lookup = df_map.set_index('TEST Barcode')['REF Barcode']
     comp_table['REF Barcode'] = comp_table['TEST Barcode'].map(id_lookup)
@@ -74,16 +76,19 @@ if __name__ == "__main__":
 
     grade_vars_list = metadata.variable_groups['grade']
     methd_comp_all_inv.export_comparison_matrix(needed_vals=ndc_vars_list, needed_grades=grade_vars_list)
-    comp_table = methd_comp_all_inv.export_comparison_matrix(needed_vals=ndc_vars_list, needed_grades=grade_vars_list)
+    comp_table = methd_comp_all_inv.export_comparison_matrix(needed_vals=ndc_vars_list, needed_grades=grade_vars_list,
+                                                             row_completeness="none")
     comp_table.rename(columns={'SampleID': 'TEST Barcode'}, inplace=True)
     id_lookup = df_map.set_index('TEST Barcode')['REF Barcode']
     comp_table['REF Barcode'] = comp_table['TEST Barcode'].map(id_lookup)
     comp_table = comp_table.set_index(['TEST Barcode', 'REF Barcode', 'Site'])
-    comp_table.to_csv(fr'{cur_dir}/comp_tables/{save_name}_all_investigators.csv', index=True)
+    comp_table.to_csv(fr'{cur_dir}/comp_tables/{save_name}_all_investigators.csv', index=False)
 
     methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list)
     methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list, site_filters=sites)
+    methd_comp.calc_all_biases(metadata.crit_points)
     methd_comp.save_results(rf'results/{save_name}_bma_reg.csv')
+    methd_comp.save_results(rf'results/{save_name}_bias.xlsx', result_type='bias')
     methd_comp.plot_all_regressions(f'results/{save_name}_bma_reg.pdf')
 
 

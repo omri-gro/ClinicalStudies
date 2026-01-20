@@ -313,3 +313,49 @@ variables:
     - Basophil
     - Mast cell
     - Unclassified
+ PromyeloMyeloMetamyelo:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Promyelocyte
+    - Myelocyte
+    - Metamyelocyte
+ Neutrophil:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Segmented neutrophil
+    - Band neutrophil
+ Erythroblast&BasophilicNormoblast:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Erythroblast
+    - Basophilic normoblast
+ BasNorm&PolychromNorm:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Basophilic normoblast
+    - Polychromatophilic normoblast
+ PolychromNorm&Normoblast:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Polychromatophilic normoblast
+    - Normoblast

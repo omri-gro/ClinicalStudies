@@ -1,15 +1,19 @@
 import pandas as pd
 
+import sys
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
+from table_integrity import robust_dup
+
 if __name__ == "__main__":
     mthd = 'REF'  # for test, remember to change name of 'Total' raw to 'Total nucleated cells'
-    site = 'BWH'
+    site = 'HUP'
 
     investigators = {'Wei Xie': 'User1', 'Todd Williams': 'User2',
                      'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User3', 'Sam Sadigh': 'User4',
                      'DL': 'User1', 'AB': 'User2', 'AS': 'User2',
                      'ev1': 'User1', 'ev2': 'User2'}
 
-    arbitrators = ["Phil Raess", "Christopher Hergott"]
+    arbitrators = ["Phil Raess", "Christopher Hergott", "OP"]
     # suffixes = ["rev1", "rev2", "arb"]
 
     # investigators = {'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User1', 'Sam Sadigh': 'User2'}
@@ -49,6 +53,7 @@ if __name__ == "__main__":
         df_melted = df_melted[~df_melted['Sample'].isin(single_reviewer_specimens)]
 
     # Pivot table to align values from both investigators
+    robust_dup(df_melted, ['Sample', 'Parameter', 'User'])
     df_pivoted = df_melted.pivot(index=['Sample', 'Parameter'], columns='User', values='Value').reset_index()
 
     if len(df_pivoted) == 0:

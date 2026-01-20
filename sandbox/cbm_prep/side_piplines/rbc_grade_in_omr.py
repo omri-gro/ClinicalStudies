@@ -95,13 +95,13 @@ if __name__ == "__main__":
     metadata = MetadataBundle(meta_path)
 
     # all cbm numbers are already in single file
-    cbm_file_name = '4sites_CBM.csv'
+    cbm_file_name = '6sites_CBM.csv'
     cbm_df = medium_pipe(cbm_file_name, None, 'CBM', metadata, dir=r'raw/cbm_method_comparison')
     cbm_df = cbm_df[cbm_df['Value'].notna()]
     cbm_df_vals = cbm_df.drop(['Grade', 'Positive', 'Grade_from'], axis=1)
 
     # build df from omr files
-    sites = ['BWH', 'CPG', 'LMU', 'TASMC']  # for now not dealing with HUP and SYN for simplicity
+    sites = ['BWH', 'CPG', 'HUP', 'LMU', 'TASMC']  # for now not dealing with SYN for simplicity
     srcs = {(site, 'OMR'): f'{site}_OMR.csv' for site in sites}
     methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison')
     omr_df = methd_comp.df
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     # just for now, treat the binary as grade
     frmt_df.loc[frmt_df['Reporting Format'] == 'binary', 'Reporting Format'] = 'graded'
 
-    omr_df = grades_by_rprt_frmts(omr_df, frmt_df)
+    # omr_df = grades_by_rprt_frmts(omr_df, frmt_df)
     omr_df = omr_df[omr_df['Grade'].notna()]
 
     # create dataframe from both methods
@@ -216,7 +216,7 @@ if __name__ == "__main__":
             plt.close()
 
 
-        """
+
         # correlation measures
         rho, p_rho = spearmanr(df['Value_CBM'], df['Grade_OMR'])
         tau, p_tau = kendalltau(df['Value_CBM'], df['Grade_OMR'])
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         plt.title(var_site)
         plt.tight_layout()
         plt.show()
-        """
+
 
     cors = pd.DataFrame(correlations)
     cors.to_csv('omr_grades_correlations.csv', index=False)

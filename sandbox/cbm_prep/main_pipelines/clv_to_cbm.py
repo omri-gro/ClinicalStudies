@@ -18,7 +18,7 @@ from itertools import *
 
 
 if __name__ == "__main__":
-    inter = True
+    inter = False
     comp_with_cbm = True
 
     min_inv = 0  # False or number
@@ -33,11 +33,11 @@ if __name__ == "__main__":
     exprt_mtrx = True
     plot_reg = False
     inv_names_in_export = True  # if False investigators will appear as Rev1 and Rev2 only
-    sites = ['BWH', 'TASMC']
-    inv_map = {'Alina': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
+    sites = ['BWH', 'LMU', 'TASMC']
+    inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
                'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
-    pair_map = {'Alina': 'Alina&Sladana', 'Christine Lavoie': 'Christine&Chris', 'Ebikebuna Rufus': 'Ebi&Thu', 'Sarah Pereira Rodrigues': 'Sarah&Yael',
+    pair_map = {'Alina': 'Alina&Sladana', 'Alina KÃ¼pper': 'Alina&Sladana', 'Christine Lavoie': 'Christine&Chris', 'Ebikebuna Rufus': 'Ebi&Thu', 'Sarah Pereira Rodrigues': 'Sarah&Yael',
                'Sladana': 'Alina&Sladana', 'Christopher Wright': 'Christine&Chris', 'Thu Tran': 'Ebi&Thu', 'YAEL SAYEGH': 'Sarah&Yael',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
     pairs = ['Christine&Chris', 'Ebi&Thu', 'Sarah&Yael']
@@ -59,7 +59,8 @@ if __name__ == "__main__":
     df_srcs_list = []
     for site in sites:
         # Currently cases with <min_inv investigators still appearing. Will be removed after mtrx_export.
-        df = clv_pipe(f'{site}_ClV.csv', site, metadata, dir=r'raw/cbm_method_comparison', mean_inv=False, drv_vars=False)
+        df = clv_pipe(f'{site}_ClV.csv', site, metadata, dir=r'raw/cbm_method_comparison',
+                      min_inv=min_inv, mean_inv=True, drv_vars=False)
         df_srcs_list.append(df)
 
     # converting clv results into MethodComparator to use filter_by_df - will not be necessary once MethodComparator is split into multiple objects

@@ -7,14 +7,14 @@ from sandbox import *
 from pipelines import mean_manual_pipe, medium_pipe
 
 if __name__ == "__main__":
-    sites = ['CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
+    sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
 
-    bin_params = False
+    bin_params = True
 
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
 
     remove_cases_by_list = True
     min_unclass = 10  # number (0-100) or False   currently doesn't matter, as no such slides sent to manual
@@ -32,10 +32,12 @@ if __name__ == "__main__":
 
     invstigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1',
                         'Sarah Pereira Rodrigues': 'Rev1', 'Maria Buen Viana De Perio': 'Rev1',
+                        'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1',
                         'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
                         'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2',
                         'YAEL ASYEGH': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Yael S': 'Rev2', 'Yael Sayegh': 'Rev2',
                         'Yael S ': 'Rev2',
+                        'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2',
                         'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
 
     df_srcs_list = []
@@ -77,7 +79,7 @@ if __name__ == "__main__":
     df['Investigator'] = df['Investigator'].map(invstigators_map)
     df = add_mean_investigator(df, 'manual')
 
-    binary_vars = metadata.variable_groups["binary"]
+    binary_vars = metadata.variable_groups["PLT morphology"] + metadata.variable_groups["RBC arrangement"] + metadata.variable_groups["WBC morphology"]
     raw_grade_cond=lambda d: (
         d["Method"].isin(['manual'])
         & d["Variable"].isin(binary_vars)
@@ -102,7 +104,7 @@ if __name__ == "__main__":
     methd_comp = methd_comp.filter_by_df(rmv_df)
 
     vars_to_test = metadata.variable_groups['WBC&PLT compare']
-    grades_to_test = ['scan_id'] + metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
+    grades_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
         'PLT morphology']
     grades_to_print = grades_to_test + ['ScanID']
     morph_vals_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups['PLT morphology']
@@ -136,9 +138,16 @@ if __name__ == "__main__":
                 comparison_dims=("Variable", "Method", "Investigator"),
                 needed_vars=binary_vars,
                 value_col="Positive")
+            methd_comp.export_comparison_matrix(
+                out_path=fr'comp_tables/{save_name}_bin_vals.csv',
+                row_identifiers=["Site", "SampleID"],
+                comparison_dims=("Variable", "Method", "Investigator"),
+                needed_vals=binary_vars,
+                needed_grades=binary_vars + ['ScanID'],
+                row_completeness="none")
 
-        methd_comp.batch_compare('manual', 'CBM', binary_vars, function='binary')
-        methd_comp.batch_compare('manual', 'CBM', binary_vars, site_filters=sites, function='binary')
+        methd_comp.batch_compare(levels_a='manual', levels_b='CBM', variables=binary_vars, comp_func='binary')
+        methd_comp.batch_compare(levels_a='manual', levels_b='CBM', variables=binary_vars, split_by='Site', comp_func='binary')
         methd_comp.save_results(rf'results/mnl/{save_name}_bin.csv', result_type="binary")
 
     # keep only mean investigator

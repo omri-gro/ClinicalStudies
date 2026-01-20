@@ -15,7 +15,9 @@ def safe_pivot(df: pd.DataFrame,
         df = df.sort_values(sort_by, ascending=ascending, kind="mergesort")
 
     # Verify uniqueness per ID, and dimension
-    key_cols = list(index) + [columns]
+    if isinstance(columns, str):
+        columns = [columns]
+    key_cols = list(index) + columns
     df_clean = robust_dup(df, key_cols=key_cols, on_duplicates=on_duplicates)
 
     wide = df_clean.pivot(
@@ -31,16 +33,18 @@ def robust_dup(df: pd.DataFrame,
                on_duplicates: str = "raise",  # "raise" | "first" | "last" | "none"
                ) -> pd.DataFrame:
     """ Resolve duplicate rows according to key_cols. """
+    if on_duplicates == "error":   # backwards compatibility
+        on_duplicates = "raise"
     if on_duplicates not in {"raise", "first", "last", "none"}:
         raise ValueError(f"Invalid on_duplicates option: {on_duplicates}")
 
     report = dup_report(df, key_cols)
-    if report is None:
+    if report is None or report.empty:
         return df
 
-    preview = dup_report.head(10).to_string(index=False)
+    preview = report.head(10).to_string(index=False)
     n_dup_keys = len(report)
-    dup_str = f"[dedup] on_duplicates='{on_duplicates}: {n_dup_keys} duplicate keys detected.\nExamples:\n{preview}"
+    dup_str = f"[dedup] on_duplicates='{on_duplicates}': {n_dup_keys} duplicate keys detected.\nExamples:\n{preview}"
 
     if on_duplicates == "raise":
         raise ValueError(dup_str)
@@ -76,7 +80,7 @@ def dup_report(df: pd.DataFrame,
         return None
 
     return (df.loc[dup_mask, key_cols]
-            .value_counts()
+            .value_counts(dropna=False)
             .rename("count")
             .reset_index()
             .sort_values("count", ascending=False))

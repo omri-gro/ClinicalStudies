@@ -864,15 +864,16 @@ def add_grade_column(df_long: pd.DataFrame, meta: "MetadataBundle", raw_grade_co
             if not mv.any():
                 continue
             spec = meta.grading_specs[var]
+            vals = pd.to_numeric(df.loc[mv, "Value"], errors="coerce")  # -> float dtype w/ np.nan
             try:
                 df.loc[mv, "Grade"] = cut_series_to_categorical(
-                    df.loc[mv, "Value"].astype(float),
+                    vals,
                     thresholds=spec["thresholds"],
                     grades=spec["grades"],
                     right_closed=spec.get("right_closed", True),
                     clamp_out_of_range=spec.get("clamp_out_of_range", True))
                 df.loc[mv, "Grade_from"] = "derived"
-            except ValueError as e:
+            except ValueError or ValueError as e:
                 print(f"\033[93mGrading specs error for {var}: {e}. Values not converted to grades.\033[0m")
                 df.loc[mv, "Grade_from"] = "conversion error"
     return df
@@ -939,7 +940,7 @@ def cut_series_to_categorical(x: pd.Series,
     Returns:
         pandas Series with categories exactly as in `grades`.
     """
-    y = x.astype(float)
+    y = pd.to_numeric(x, errors="coerce")  # robust to pd.NA / strings / etc.
     if len(thresholds) == len(grades) - 1:
         edges = np.concatenate(([-np.inf], thresholds, [np.inf]))
     elif len(thresholds) == len(grades) + 1:
@@ -1048,21 +1049,39 @@ def pivot_long(df, id_vars=["SampleID", "Site", "Method", "FileName"], value_var
     return long_df
 
 
-def create_derived_variables_long(df, metadata):
+def create_derived_variables_long(df, metadata, *, on_existing: str = "skip"):
     """
     Create derived variables in a long-format DataFrame using metadata.
 
     Args:
         df (pd.DataFrame): Long-format DataFrame (concatenated from all sites).
         metadata (MetadataBundle): Metadata containing derived variable recipes.
+        on_existing (str): What to do if a derived variable already exists for the same
+            group_cols + Variable in df.
+            Options:
+              - "skip": do not add the derived row for those cases
+              - "overwrite": delete existing provided rows and replace with derived rows
+              - "keep_both": keep both (previous behavior)
 
     Returns:
         pd.DataFrame: DataFrame with derived variable rows appended.
     """
+    if on_existing not in {"skip", "overwrite", "keep_both"}:
+        raise ValueError("on_existing must be one of: 'skip', 'overwrite', 'keep_both'")
+
     derived_rows = []
 
     # Possible grouping columns to preserve context
     possible_group_cols = ["SampleID", "Site", "Method", "Investigator", "Unit"]
+
+    # Get grouping columns actually present
+    group_cols = [col for col in possible_group_cols if col in df.columns]
+    if not group_cols:
+        raise ValueError(f"None of the {possible_group_cols} exist in df; cannot safely derive.")
+
+    key_cols = group_cols + ["Variable"]
+    existing_keys = df[key_cols].drop_duplicates()
+
 
     for derived_var, props in metadata.variables.items():
         derived_from = props.get("derived_from")
@@ -1079,9 +1098,6 @@ def create_derived_variables_long(df, metadata):
             continue
         comp_df["Value"] = pd.to_numeric(comp_df["Value"], errors='raise')
 
-        # Group by sample and site identifiers
-        group_cols = [col for col in possible_group_cols if col in df.columns]
-
         aggregated = comp_df.groupby(group_cols, dropna=False).agg({"Value": operation})
 
         # Build derived rows
@@ -1089,14 +1105,41 @@ def create_derived_variables_long(df, metadata):
         aggregated["Variable"] = derived_var
         aggregated["ValueOrigin"] = "Derived"
 
+        # Handle collisions with existing provided rows
+        if on_existing in {"skip", "overwrite"}:
+            # Build keys for the would-be derived rows
+            der_keys = aggregated[key_cols].drop_duplicates()
+
+            # Mark derived rows that already exist in df
+            # (merge with indicator is an easy "is in" for multiple columns)
+            m = der_keys.merge(existing_keys, on=key_cols, how="left", indicator=True)["_merge"].eq("both")
+
+            if on_existing == "skip":
+                # Keep only derived rows whose key is NOT already present
+                keep_keys = der_keys.loc[~m, key_cols]
+                aggregated = aggregated.merge(keep_keys, on=key_cols, how="inner")
+
+            elif on_existing == "overwrite":
+                # Remove any existing rows in df that match derived keys
+                # Do it once per derived variable (cheap enough; still vectorized)
+                to_remove_keys = der_keys.loc[m, key_cols]
+                if not to_remove_keys.empty:
+                    df = df.merge(to_remove_keys.assign(_drop=1), on=key_cols, how="left")
+                    df = df[df["_drop"].isna()].drop(columns="_drop")
+
         derived_rows.append(aggregated)
 
-    if derived_rows:
-        derived_df = pd.concat(derived_rows, ignore_index=True)
-        df = pd.concat([df, derived_df], ignore_index=True)
-    else:
+    if not derived_rows:
         print("No derived variables created (no recipes in metadata).")
+        return df
 
+    derived_df = pd.concat(derived_rows, ignore_index=True)
+
+    # At this point:
+    # - keep_both: df and derived_df are untouched
+    # - skip: derived_df has been filtered
+    # - overwrite: df has been filtered
+    df = pd.concat([df, derived_df], ignore_index=True)
     return df
 
 

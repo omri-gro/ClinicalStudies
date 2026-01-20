@@ -17,7 +17,7 @@ if __name__ == "__main__":
     rbc_grade_vars = list(set(graded_vars) & set(rbc_vars))
 
 
-    sites = ['BWH', 'CPG', 'LMU', 'TASMC']
+    sites = ['BWH', 'CPG', 'HUP', 'LMU', 'TASMC']
     srcs = {(site, 'OMR'): f'{site}_OMR.csv' for site in sites}
     methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison')
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     df_graded = df_grades[mask]
     df_graded.loc[:, "Value"] = df_graded["Grade"]
 
-    cbm_file_name = '5sites_CBM.csv'
+    cbm_file_name = '6sites_CBM.csv'
     cbm_df = medium_pipe(cbm_file_name, None, 'CBM', metadata, dir=r'raw/cbm_method_comparison')
 
     all_dfs = pd.concat([df_graded, cbm_df])
