@@ -28,6 +28,8 @@ variables:
   crit_points: [0, 10, 20]
   normal_range: [10, 20]
  Segmented neutrophil:
+  aliases:
+   - Segmented Neutrophil
   groups:
    - NDC
    - percent
@@ -35,6 +37,8 @@ variables:
   crit_points: [0, 10, 30]
   normal_range: [10, 30]
  Band neutrophil:
+  aliases:
+   - Band Neutrophil
   groups:
    - NDC
    - percent
@@ -42,6 +46,8 @@ variables:
   crit_points: [0, 5, 15]
   normal_range: [5, 15]
  Plasma cell:
+  aliases:
+   - Plasma Cell
   groups:
    - NDC
    - percent
@@ -63,6 +69,8 @@ variables:
   crit_points: [0, 5]
   normal_range: [0, 5]
  Basophilic normoblast:
+  aliases:
+   - Basophilic Normoblast
   groups:
    - NDC
    - percent
@@ -70,6 +78,8 @@ variables:
   crit_points: [0, 1, 5]
   normal_range: [1, 5]
  Polychromatophilic normoblast:
+  aliases:
+   - Polychromatophilic Normoblast
   groups:
    - NDC
    - percent
@@ -102,6 +112,8 @@ variables:
   crit_points: [0, 1]
   normal_range: [0, 1]
  Mast cell:
+  aliases:
+   - Mast Cell
   groups:
    - NDC
    - percent
@@ -313,49 +325,3 @@ variables:
     - Basophil
     - Mast cell
     - Unclassified
- PromyeloMyeloMetamyelo:
-  groups:
-   - NDC lineage total
-   - percent
-   - derived
-  derived_from:
-   components:
-    - Promyelocyte
-    - Myelocyte
-    - Metamyelocyte
- Neutrophil:
-  groups:
-   - NDC lineage total
-   - percent
-   - derived
-  derived_from:
-   components:
-    - Segmented neutrophil
-    - Band neutrophil
- Erythroblast&BasophilicNormoblast:
-  groups:
-   - NDC lineage total
-   - percent
-   - derived
-  derived_from:
-   components:
-    - Erythroblast
-    - Basophilic normoblast
- BasNorm&PolychromNorm:
-  groups:
-   - NDC lineage total
-   - percent
-   - derived
-  derived_from:
-   components:
-    - Basophilic normoblast
-    - Polychromatophilic normoblast
- PolychromNorm&Normoblast:
-  groups:
-   - NDC lineage total
-   - percent
-   - derived
-  derived_from:
-   components:
-    - Polychromatophilic normoblast
-    - Normoblast

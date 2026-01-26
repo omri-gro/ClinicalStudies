@@ -1238,6 +1238,9 @@ def to_comparison_matrix(
     """
     df = _as_df(obj_or_df)
 
+    if value_col == 'Positive':
+        df['Positive'] = df['Positive'].astype(str)
+
     # --- choose variables ---
     if needed_vars is None and metadata is not None:
         # future adjustment - change tuple to order of preference on variables group names
@@ -1415,6 +1418,7 @@ def set_equal_limits_and_scale(fig=None, ax=None):
 
 """ BMA study tools """
 def raw_bma_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
+    # site=None if Site column already exists in raw data
     # temporary form, works when semi-automatic data prep used
     # to do: create pointer function that chooses which raw-to-df function to use
     df = read_to_df(file_name, sheet_name, dir)
@@ -1439,7 +1443,9 @@ def raw_bma_to_df(file_name, site, method, sheet_name='Sheet1', dir=None):
         raise ValueError(f"Missing 'SampleID' column in {file_name}")
 
     # Add metadata columns
-    df["Site"] = site
+    if site is not None:
+        df["Site"] = site
+
     df["Method"] = method
     df["FileName"] = os.path.basename(file_name)
 

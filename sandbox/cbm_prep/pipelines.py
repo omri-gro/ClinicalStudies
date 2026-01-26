@@ -121,7 +121,7 @@ def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"])
     df = add_grade_column(df, metadata,
                           raw_grade_cond=lambda d: (d["Method"].isin(["OMR", "Manual"]) & d["Variable"].isin(grd_params))
                           )
-    df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
+    df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value nor grade in row
 
     # calculate derived variables (e.g., Variant Lymphocytes)
     df = create_derived_variables_long(df, metadata)
@@ -163,7 +163,7 @@ def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', di
     df = add_grade_column(df, metadata)
     # df = add_pos_column(df, metadata)
     df = df.dropna(subset=["Value", "Grade"], how="all")
-    df = df.dropna(subset="Value", how="all")
+    # df = df.dropna(subset="Value", how="all")
 
     # calculate derived variables (e.g., Variant Lymphocytes)
     df = create_derived_variables_long(df, metadata)

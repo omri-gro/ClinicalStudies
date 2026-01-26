@@ -220,7 +220,7 @@ class MethodComparator:
         try:
             # get cases for which condition applies
             needed_cases = self.apply_to_df(function='query', expr=condition, inplace=False)
-        except (SyntaxError, ValueError, pd.errors.UndefinedVariableError) as e:
+        except (SyntaxError, ValueError) as e:
             raise ValueError(f"\033[91mQuery expression {condition} raised error: {e}") from e
             print(f'\033[91mInvalid condition string: {e}\033[0m')
 
@@ -1023,7 +1023,7 @@ class MethodComparator:
         row.update(stratum)
         return row
 
-    def save_results(self, filepath: str, result_type: str = "reg") -> None:
+    def save_results(self, filepath: str, result_type: str = "reg", fill_all=True) -> None:
         """
         Save MethodComparator.results to CSV or Excel.
         """
@@ -1035,6 +1035,12 @@ class MethodComparator:
             df = self.metrics_to_dataframe()
         else:
             raise ValueError(f"{result_type} result_type not supported")
+
+        # fill in 'All' value for places where Site or Investigator field is blank
+        for col in ['Site', 'Investigator']:
+            if col in df.columns:
+                df[col].fillna('All', inplace=True)
+
         if isinstance(filepath, (str, os.PathLike)):
             sb.write_df_to_file(df, filepath)
         else:

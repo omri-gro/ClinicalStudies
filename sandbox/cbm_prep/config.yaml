@@ -439,6 +439,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -468,6 +469,7 @@ variables:
    - percent
    - grade
    - RBC inclusions
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -484,6 +486,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
   thresholds: [1, 2]
@@ -500,6 +503,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
   thresholds: [1, 2]
@@ -518,6 +522,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -532,6 +537,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -547,6 +553,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
   thresholds: [1, 2]
@@ -564,6 +571,7 @@ variables:
    - percent
    - grade
    - RBC inclusions
+   - RBC diff
   crit_points: [0, 2, 3]
   normal_range: [0, 2]
   thresholds: [2, 3]
@@ -581,6 +589,7 @@ variables:
    - percent
    - grade
    - RBC color
+   - RBC diff
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]
@@ -596,6 +605,7 @@ variables:
    - percent
    - grade
    - RBC size
+   - RBC diff
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]
@@ -611,6 +621,7 @@ variables:
    - percent
    - grade
    - RBC size
+   - RBC diff
   crit_points: [0, 11, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]
@@ -625,6 +636,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -642,6 +654,7 @@ variables:
    - percent
    - grade
    - RBC inclusions
+   - RBC diff
   crit_points: [0, 2, 3]
   normal_range: [0, 2]
   thresholds: [2, 3]
@@ -659,6 +672,7 @@ variables:
    - percent
    - grade
    - RBC inclusions
+   - RBC diff
   crit_points: [0, 1, 5]
   normal_range: [0, 1]
   thresholds: [0, 1, 5]
@@ -701,6 +715,7 @@ variables:
    - percent
    - grade
    - RBC color
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -720,8 +735,8 @@ variables:
   normal_range: [0, 5]
  Rouleaux:
   aliases:
-   - rouleaux
    - Rouleaux formation
+   - rouleaux
    - rouleaux_formation_count
    - RBC morphology - Irregular distribution (graded 0-3) [Rouleaux formation]
   groups:
@@ -741,6 +756,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
   thresholds: [0, 1, 2]
@@ -758,6 +774,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
   thresholds: [1, 2]
@@ -772,6 +789,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -786,6 +804,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -802,6 +821,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]
@@ -820,6 +840,7 @@ variables:
    - percent
    - grade
    - RBC shape
+   - RBC diff
   crit_points: [0, 5, 20]
   normal_range: [0, 5]
   thresholds: [5, 20]

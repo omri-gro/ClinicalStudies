@@ -21,18 +21,26 @@ if __name__ == "__main__":
     inter = False
     comp_with_cbm = True
 
-    min_inv = 0  # False or number
+    min_inv = 2  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
-    rmv_arb = True
+    rmv_brd = False
+
+    """
+    current filtering investigation
+    min_inv=2 major improvement
+    no_scrtch no major improvement
+    crf_ssn not major difference between 'all' and 'post'
+    rmv_brd no influence for clv (not enough borderline cases reviewed in ClV to make a difference)
+    """
+
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}'
 
     intr_by_pair = False
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_arbrmv-{rmv_arb}'
-
     exprt_mtrx = True
-    plot_reg = False
-    inv_names_in_export = True  # if False investigators will appear as Rev1 and Rev2 only
+    plot_reg = True
+    inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     sites = ['BWH', 'LMU', 'TASMC']
     inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
                'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2',
@@ -41,7 +49,7 @@ if __name__ == "__main__":
                'Sladana': 'Alina&Sladana', 'Christopher Wright': 'Christine&Chris', 'Thu Tran': 'Ebi&Thu', 'YAEL SAYEGH': 'Sarah&Yael',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
     pairs = ['Christine&Chris', 'Ebi&Thu', 'Sarah&Yael']
-    by_list = pairs if intr_by_pair else sites
+    by_list = pairs if intr_by_pair and inter else sites
     test_arm = 'CBM'
     ref_arm = 'ClV'
 
@@ -50,8 +58,11 @@ if __name__ == "__main__":
     meta_path = r'config.yaml'
     metadata = MetadataBundle(meta_path)
 
+    # from previous attempts to quantify PLT morphologies with ClV
     vars_to_test = metadata.variable_groups['RBC morphology'] + metadata.variable_groups['PLT morphology'] + \
                    metadata.variable_groups['RBC combinations']
+
+    vars_to_test = metadata.variable_groups['RBC diff']
     vars_to_print = vars_to_test + ['TotalRBC'] + ['TotalPLT']
     id_vars_clv = ["SampleID", "Site", "Method", "FileName", 'Investigator']
     id_vars_cbm = ["SampleID", "Site", "Method", "FileName"]
@@ -59,8 +70,10 @@ if __name__ == "__main__":
     df_srcs_list = []
     for site in sites:
         # Currently cases with <min_inv investigators still appearing. Will be removed after mtrx_export.
+
+        extra_calcs = True if crf_ssn not in ['pre', 'post'] else False  # in these cases mean investigator and derived variables will be added later
         df = clv_pipe(f'{site}_ClV.csv', site, metadata, dir=r'raw/cbm_method_comparison',
-                      min_inv=min_inv, mean_inv=True, drv_vars=False)
+                      min_inv=min_inv, mean_inv=extra_calcs, drv_vars=extra_calcs, only_mean=False)
         df_srcs_list.append(df)
 
     # converting clv results into MethodComparator to use filter_by_df - will not be necessary once MethodComparator is split into multiple objects
@@ -90,8 +103,12 @@ if __name__ == "__main__":
 
     methd_comp = MethodComparator(all_dfs)
 
-    if rmv_arb:
-        rmv_file = r'flt_lists/slides_to_remove.csv'
+    rmv_file = r'flt_lists/slides_to_remove.csv'
+    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
+    methd_comp = methd_comp.filter_by_df(rmv_df)
+
+    if rmv_brd:
+        rmv_file = r'flt_lists/slides_to_remove_borderline.csv'
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
 
@@ -102,7 +119,7 @@ if __name__ == "__main__":
 
 
     if inter:
-        int_save_name = f'clv_inter_{crf_ssn}-ssn_no_scrtch-{no_scrtch}_arbrmv-{rmv_arb}_bypair-{intr_by_pair}'
+        int_save_name = f'clv_inter_{crf_ssn}-ssn_no_scrtch-{no_scrtch}_arbrmv-{rmv_brd}_bypair-{intr_by_pair}'
 
         intr_df = methd_comp.only_when_cond(f"Investigator!='Mean Investigator' and Method=='{ref_arm}'").df.copy()
         if intr_by_pair:
