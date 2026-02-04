@@ -1,16 +1,16 @@
 import os
 import sys
-import pandas as pd, matplotlib.pyplot as plt
-import numpy as np
-import seaborn as sns
-from scipy.stats import f_oneway
-from matplotlib.backends.backend_pdf import PdfPages
-from scipy.stats import spearmanr, kendalltau
-from statsmodels.miscmodels.ordinal_model import OrderedModel
+import pandas as pd
+# import numpy as np
+# import seaborn as sns
+# from scipy.stats import f_oneway
+# from matplotlib.backends.backend_pdf import PdfPages
+# from scipy.stats import spearmanr, kendalltau
+# from statsmodels.miscmodels.ordinal_model import OrderedModel
 
 sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\cbm_prep')
 from objects import MethodComparator
-from sandbox import MetadataBundle, read_to_df, add_mean_investigator, add_grade_column, add_pos_column, create_derived_variables_long
+from sandbox import MetadataBundle, read_to_df, add_mean_investigator, add_grade_column, add_pos_column, create_derived_variables_long, write_df_to_file
 from pipelines import medium_pipe, clv_pipe
 from itertools import *
 
@@ -18,10 +18,10 @@ from itertools import *
 
 
 if __name__ == "__main__":
-    inter = False
+    inter = True
     comp_with_cbm = True
 
-    min_inv = 2  # False or number
+    min_inv = False  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
@@ -38,9 +38,11 @@ if __name__ == "__main__":
 
     intr_by_pair = False
 
+    exprt_long = True
     exprt_mtrx = True
     plot_reg = True
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
+
     sites = ['BWH', 'LMU', 'TASMC']
     inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
                'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2',
@@ -117,6 +119,14 @@ if __name__ == "__main__":
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
 
+
+    if exprt_long:
+        arb_vars = metadata.variable_groups['RBC inclusions'] + metadata.variable_groups['RBC shape'] + metadata.variable_groups['RBC color']
+        df_long = methd_comp.df.query(
+            f"Variable in @arb_vars and Method=='{ref_arm}' and Investigator!='Mean Investigator'")[
+            ['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
+        df_long['Investigator'] = df_long['Investigator'].map(inv_map)
+        write_df_to_file(df_long, rf'comp_tables/{save_name}_long.csv')
 
     if inter:
         int_save_name = f'clv_inter_{crf_ssn}-ssn_no_scrtch-{no_scrtch}_arbrmv-{rmv_brd}_bypair-{intr_by_pair}'

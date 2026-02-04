@@ -5,12 +5,13 @@ sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudto
 from table_integrity import robust_dup
 
 if __name__ == "__main__":
-    mthd = 'REF'  # for test, remember to change name of 'Total' raw to 'Total nucleated cells'
-    site = 'HUP'
+    mthd = 'TEST'  # for test, remember to change name of 'Total' raw to 'Total nucleated cells'
+    site = 'OHSU'
 
     investigators = {'Wei Xie': 'User1', 'Todd Williams': 'User2',
                      'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User3', 'Sam Sadigh': 'User4',
                      'DL': 'User1', 'AB': 'User2', 'AS': 'User2',
+                     "Phil Raess": 'Arbitrator', "Christopher Hergott": 'Arbitrator', 'OP': 'Arbitrator',
                      'ev1': 'User1', 'ev2': 'User2'}
 
     arbitrators = ["Phil Raess", "Christopher Hergott", "OP"]
@@ -55,6 +56,10 @@ if __name__ == "__main__":
     # Pivot table to align values from both investigators
     robust_dup(df_melted, ['Sample', 'Parameter', 'User'])
     df_pivoted = df_melted.pivot(index=['Sample', 'Parameter'], columns='User', values='Value').reset_index()
+
+    # arbitrator values do not need to go through additional arbitration
+    if 'Arbitrator' in df_pivoted.columns:
+        df_pivoted.drop(columns=['Arbitrator'], inplace=True)
 
     if len(df_pivoted) == 0:
         raise ValueError("Nothing to compare (no samples were reviewed by multiple reviewers yet)")

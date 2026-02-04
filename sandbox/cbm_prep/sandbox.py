@@ -979,6 +979,65 @@ def curate_df(df, metadata, src=None, wbcs_as_counts=False):
 
     return df
 
+
+
+def min_inv_filt(df, mthd, min_inv=2):
+    """
+    Keep only (SampleID, Site, Variable) groups with >= min_inv unique investigators.
+
+    Reporting: print only (SampleID, Site) pairs where the fraction of variables kept
+    is < report_if_kept_frac_lt (default: majority of variables fail).
+    """
+    report_if_kept_frac_lt = 0.5
+    subset = ['SampleID', 'Site', 'Variable']
+    inv_subset = subset + ['Investigator']
+
+    invs_df = df.query(f"Method=='{mthd}'").copy()
+
+    # error if same investigator reviewed same sample twice
+    invs_df = robust_dup(invs_df, key_cols=inv_subset, on_duplicates='raise')
+
+    # check number of investigators that reviewed each sample
+    inv_counts = invs_df.groupby(subset)["Investigator"].transform('nunique')
+    mask_keep = inv_counts >= min_inv
+    out_df = invs_df.loc[mask_keep].copy()
+
+    # ---- Reporting at (SampleID, Site) level ----
+    # total variables present for each (SampleID, Site) in this method/value-filtered frame
+    total_vars = (
+        invs_df.drop_duplicates(subset=subset)
+        .groupby(["SampleID", "Site"])["Variable"]
+        .count()
+        .rename("n_total_vars")
+    )
+
+    # variables that survive (i.e., had >= min_inv investigators)
+    kept_vars = (
+        out_df.drop_duplicates(subset=subset)
+        .groupby(["SampleID", "Site"])["Variable"]
+        .count()
+        .rename("n_kept_vars")
+    )
+
+    summary = total_vars.to_frame().join(kept_vars, how="left").fillna({"n_kept_vars": 0})
+    summary["n_kept_vars"] = summary["n_kept_vars"].astype(int)
+    summary["kept_frac"] = summary["n_kept_vars"] / summary["n_total_vars"]
+
+    flagged = summary[summary["kept_frac"] < report_if_kept_frac_lt].sort_values(
+        ["kept_frac", "n_total_vars", "n_kept_vars"]
+    )
+
+    if len(flagged):
+        print(
+            f"Flagging {len(flagged)} (SampleID, Site) pairs where kept variables fraction "
+            f"< {report_if_kept_frac_lt:.2f} after requiring >= {min_inv} investigators per variable.\n"
+            f"Examples:\n{flagged.head(5).reset_index().to_string(index=False)}"
+        )
+
+
+    return out_df
+
+
 def add_mean_investigator(df, mthd='ClV', min_inv=0, mean_inv_name="Mean Investigator"):
     # for the observations in mthd, calculate the average of all investigator's reviews
     # observations with less than min_inv investigators' reviews will not have mean calculated
@@ -989,7 +1048,7 @@ def add_mean_investigator(df, mthd='ClV', min_inv=0, mean_inv_name="Mean Investi
     inv_subset = subset + ['Investigator']
 
     # take only rows to be used for mean calculation
-    invs_df = df.query(f"Method=='{mthd}' and {val}.notna()")
+    invs_df = df.query(f"Method=='{mthd}' and {val}.notna()").copy()
 
     # only rows with numeric values
     invs_df.loc[:, val] = pd.to_numeric(invs_df.loc[:, val], errors='coerce')
@@ -999,17 +1058,18 @@ def add_mean_investigator(df, mthd='ClV', min_inv=0, mean_inv_name="Mean Investi
     invs_df = robust_dup(invs_df, key_cols=inv_subset, on_duplicates='raise')
 
     if min_inv:
-        # check number of investigators that reviewed each sample
-        inv_counts = invs_df.groupby(subset)["SampleID"].transform('count')
-        mask_keep = inv_counts >= min_inv
-
-        # report on dropped samples
-        dropped = invs_df.loc[~mask_keep, ['SampleID', 'Site']].drop_duplicates()
-        dropped_report_str = f"Removed {dropped.shape[0]} samples with <{min_inv} investigators' reviews.\n" \
-                             f"Examples:\n{dropped.head(5).to_string(index=False)}"
-        print(dropped_report_str)
-
-        invs_df = invs_df.loc[mask_keep].copy()
+        # # check number of investigators that reviewed each sample
+        # inv_counts = invs_df.groupby(subset)["SampleID"].transform('count')
+        # mask_keep = inv_counts >= min_inv
+        #
+        # # report on dropped samples
+        # dropped = invs_df.loc[~mask_keep, ['SampleID', 'Site']].drop_duplicates()
+        # dropped_report_str = f"Removed {dropped.shape[0]} samples with <{min_inv} investigators' reviews.\n" \
+        #                      f"Examples:\n{dropped.head(5).to_string(index=False)}"
+        # print(dropped_report_str)
+        #
+        # invs_df = invs_df.loc[mask_keep].copy()
+        invs_df = min_inv_filt(invs_df, mthd, min_inv=min_inv)
 
     # Compute mean for each group
     means_df = invs_df.groupby(subset, as_index=False)[val].mean()

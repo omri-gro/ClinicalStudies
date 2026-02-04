@@ -1,37 +1,35 @@
 # utils.py
 
+
 import yaml
 from pathlib import Path
 from typing import List, Iterable, Mapping, Optional, Sequence, Union, Tuple
 import pandas as pd
 import os
 
+import warnings
+from utils.coercion import as_df as _as_df_new
+from utils.coercion import ensure_list as _ensure_list_new
+
 
 """ Validation / Data handling """
-def _ensure_list(x):
-    """If argument is a tuple, convert to list.
-    If argument is anything else but a list, return list containing that one object."""
-    if isinstance(x, list):
-        return x
-    elif isinstance(x, tuple):
-        return list(x)
-    elif isinstance(x, pd.Series):
-        return x.to_list()
-    else:
-        return [x]
+def _ensure_list(*args, **kwargs):
+    warnings.warn(
+        "utils._ensure_list is deprecated; use utils.coercion.ensure_list",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _ensure_list_new(*args, **kwargs)
 
 
 
-def _as_df(obj_or_df) -> pd.DataFrame:
-    """
-        For functions that can treat either a MethodComparator or a DataFrame, except either.
-    """
-    df = getattr(obj_or_df, "df", None)   # change or set fallback for different attribute name ('data' instead of 'df')
-    if isinstance(df, pd.DataFrame):
-        return df.copy()
-    if isinstance(obj_or_df, pd.DataFrame):
-        return obj_or_df.copy()
-    raise TypeError("Expected a MethodComparator or a pandas DataFrame.")
+def _as_df(*args, **kwargs):
+    warnings.warn(
+        "utils.as_df is deprecated; use utils.coercion.as_df",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _as_df_new(*args, **kwargs)
 
 
 

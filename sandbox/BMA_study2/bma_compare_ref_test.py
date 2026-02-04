@@ -7,6 +7,9 @@ from objects import MethodComparator
 from sandbox import MetadataBundle, raw_bma_to_df, _ensure_list
 from sandbox import *
 from pipelines import bma_prep_pipeline
+# trgt_dict = os.path.abspath(r'../../clinstudtools')
+# sys.path.append(trgt_dict)
+# from table_integrity import robust_dup
 
 
 # def bma_df_pipeline(paths: dict, metadata: sb.MetadataBundle, dir=None, measurement_col='Value',
@@ -26,22 +29,25 @@ def removed_for_arbitration(df_raw, df_arb, arbitrator):
 
 
 if __name__ == "__main__":
-    save_name = 'two_sites'
+    suffix = ''
+    save_name = f'BMA_study_results{suffix}'
     meta_path = r'config_BMA.yaml'
-    sites = ["OHSU", "HUP"]
-    arbitrators = ['Phil Raess', 'Olga Pozdnyakova']
+    sites = ["OHSU", "HUP", "BWH"]
+    arbitrators = ['Phil Raess', 'Olga Pozdnyakova', 'Christopher Hergott']
 
     compare_methods = True
-    inter = False
-    raw_dss = False
+    inter = True
+    raw_dss = True
 
-    exprt_mtrx = False
-    plot_reg = False
+    exprt_mtrx = True
+    plot_reg = True
     keep_names = True  # use investigators' full names - creates very long 'all investigators' comparison matrix if True
 
     investigators_map = {'Todd Williams': 'Rev1', 'Wei Xie': 'Rev2', 'Phil Raess': 'Arbitrator',
                          'AB': 'Rev1', 'AS': 'Rev2', 'DL': 'Rev3', 'OP': 'Arbitrator',
                          'Adam Bagg': 'Rev1', 'Annapurna Saksena': 'Rev2', 'Dorottya Laczko': 'Rev3', 'Olga Pozdnyakova': 'Arbitrator',
+                         'Elizabeth Morgan': 'User1', 'Habibe Kurt': 'User2', 'Robert Hasserjian': 'User3',
+                         'Sam Sadigh': 'User4', "Christopher Hergott": 'Arbitrator',
                          'Mean Investigator': 'Mean Investigator'}
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     read_dir = os.path.join(cur_dir, 'raw')
@@ -50,18 +56,20 @@ if __name__ == "__main__":
     metadata = MetadataBundle(meta_path)
     collect_dfs = []
     for site in sites:
+        min_inv_site = 2
+
         ref_df = bma_prep_pipeline(f'{site}_CRF_REF.csv', site, 'REF', metadata, dir=read_dir)
         test_df = bma_prep_pipeline(f'{site}_CRF_TEST.csv', site, 'TEST', metadata, dir=read_dir)
+
+        ref_df = min_inv_filt(ref_df, 'REF', min_inv=min_inv_site)
+        test_df = min_inv_filt(test_df, 'TEST', min_inv=min_inv_site)
 
         df_arb = read_to_df('to_arbitration.csv', ref_df, file_dir=read_dir)
         ref_df = removed_for_arbitration(ref_df, df_arb, arbitrators)
         test_df = removed_for_arbitration(test_df, df_arb, arbitrators)
 
-        # need to find way add_mean_investigator's min_inv could handle arbitrator-only samples,
-        # maybe split add_mean_investigator into 2-3 steps, or integrate with removed_for_arbitration
-        # for now can do this by removing only 1 reviewer cases beforehand
-        ref_df = add_mean_investigator(ref_df, mthd='REF', min_inv=2)
-        test_df = add_mean_investigator(test_df, mthd='TEST', min_inv=2)
+        ref_df = add_mean_investigator(ref_df, mthd='REF', min_inv=0)
+        test_df = add_mean_investigator(test_df, mthd='TEST', min_inv=0)
 
         # change all SampleIDs to the TEST Barcode based on site's mapping
         id_lookup = df_map.set_index('REF Barcode')['TEST Barcode']
@@ -144,8 +152,10 @@ if __name__ == "__main__":
     # inter-investigator
     if inter:
         if keep_names:
-            levels_a = ['Todd Williams', 'AB', 'AS', 'Adam Bagg', 'Annapurna Saksena']
-            levels_b = ['Wei Xie', 'AS', 'DL', 'Adam Bagg', 'Dorottya Laczko']
+            levels_a = ['Todd Williams', 'AB', 'AS', 'Adam Bagg', 'Annapurna Saksena',
+                        'Elizabeth Morgan', 'Habibe Kurt', 'Robert Hasserjian']
+            levels_b = ['Wei Xie', 'AS', 'DL', 'Adam Bagg', 'Dorottya Laczko',
+                        'Habibe Kurt', 'Robert Hasserjian', 'Sam Sadigh']
         else:
             levels_a = ['Rev1']
             levels_b = ['Rev2', 'Rev3']

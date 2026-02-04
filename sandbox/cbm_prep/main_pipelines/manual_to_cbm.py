@@ -13,19 +13,20 @@ if __name__ == "__main__":
     test_arm = 'CBM'
     ref_arm = 'manual'
 
-    bin_params = True
-    inter = False
+    bin_params = False
+    inter = True
 
-    exprt_mtrx = True
+    exprt_long = False
+    exprt_mtrx = False
     plot_reg = True
 
-    min_inv = False  # False or number
+    min_inv = 2  # False or number
     rmv_brd = False
     max_unclass = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
-    diff500 = False
+    diff500 = True
     crf_ssn = 'all'  # 'all' or 'post'
-    aftr_2nd_ssn = True
+    aftr_2nd_ssn = False
 
     diff500str = '_diff500' if diff500 else ''
     scnd_ssn_str = '_aftr2ndssn' if aftr_2nd_ssn else ''
@@ -39,9 +40,9 @@ if __name__ == "__main__":
 
     investigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1',
                         'Sarah Pereira Rodrigues': 'Rev1', 'Maria Buen Viana De Perio': 'Rev1',
-                        'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1',
+                        'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Donald': 'Rev1',
                         'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
-                        'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2',
+                        'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2', 'Harsha Hirani': 'Rev2',
                         'YAEL ASYEGH': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Yael S': 'Rev2', 'Yael Sayegh': 'Rev2',
                         'Yael S ': 'Rev2',
                         'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2',
@@ -128,6 +129,11 @@ if __name__ == "__main__":
     print_also = ['Unclassified WBC', "Total WBC"]
     vals_to_print = vars_to_test + print_also
     morph_vals_to_print = morph_vals_to_test + print_also
+
+    if exprt_long:
+        include_in_export = vals_to_print + grades_to_print
+        df_long = methd_comp.df.query(f"Variable in @include_in_export and Method=='{ref_arm}' and Investigator!='Mean Investigator'")[['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
+        write_df_to_file(df_long, rf'comp_tables/{save_name}_long.csv')
 
 
     if inter:
