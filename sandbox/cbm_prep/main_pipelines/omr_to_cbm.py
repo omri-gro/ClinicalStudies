@@ -9,19 +9,18 @@ from itertools import product
 
 
 if __name__ == "__main__":
-    sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
-    sites = ['BWH', 'HUP', 'LMU', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
 
-    exprt_mtrx = False
+    exprt_mtrx = True
     plot_reg = True
-    bin_params = False
+    bin_params = True
 
-    remove_cases_by_list = True
+    remove_cases_by_list = False
     diff500 = False   # only when manual
+    only_good_sites = False
 
-    manual = True  # if False use OMR as reference arm
+    manual = False  # if False use OMR as reference arm
 
     # regression settings
     reg_mthd = 'deming'   # 'deming' | 'passing'
@@ -36,25 +35,30 @@ if __name__ == "__main__":
     test_arm_wbcs = 1000
     lambda_ = ref_arm_wbcs / test_arm_wbcs   # only relevant for deming
 
-
     ref_arm = 'manual' if manual else 'OMR'
     short_ref_arm = 'mnl' if manual else 'omr'
 
+    if only_good_sites:
+        sites = ['BWH', 'HUP', 'LMU', 'TASMC']
+    else:
+        sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
+
     mthd_str = f'{reg_mthd}{lambda_}' if (reg_mthd == 'deming') else f'{reg_mthd}'
     diff500_string = '_500wbc' if diff500 else ''
+    good_sites_string = '_only_good_sites' if only_good_sites else ''
 
-    save_name = f'{short_ref_arm}_cbm_{mthd_str}{diff500_string}_good_sites'
+    save_name = f'{short_ref_arm}_cbm_{mthd_str}{diff500_string}{good_sites_string}'
     rslts_dir = rf'results/{short_ref_arm}'
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
     raw_dir = os.path.join(cur_dir, r'raw', analysis_name)
 
-    if False:
-        rmv_file = 'flt_lists/pre_session_reviews.csv'
-        filtering_source = read_to_df(rmv_file, file_dir=os.getcwd())
-    else:
-        filtering_source = None
+    # if remove_cases_by_list:
+    #     rmv_file = 'flt_lists/pre_session_reviews.csv'
+    #     filtering_source = read_to_df(rmv_file, file_dir=os.getcwd())
+    # else:
+    #     filtering_source = None
 
     metadata = MetadataBundle(meta_path)
 
