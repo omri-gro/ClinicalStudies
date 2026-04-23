@@ -1,0 +1,326 @@
+variables:
+ Blast:
+  groups:
+   - NDC
+   - percent
+   - Myeloid
+  crit_points: [0, 5, 20]
+  normal_range: [0, 5]
+ Promyelocyte:
+  groups:
+   - NDC
+   - percent
+   - Myeloid
+  crit_points: [0, 0.5, 5]
+  normal_range: [0.5, 5]
+ Myelocyte:
+  groups:
+   - NDC
+   - percent
+   - Myeloid
+  crit_points: [0, 5, 20]
+  normal_range: [5, 20]
+ Metamyelocyte:
+  groups:
+   - NDC
+   - percent
+   - Myeloid
+  crit_points: [0, 10, 20]
+  normal_range: [10, 20]
+ Segmented neutrophil:
+  aliases:
+   - Segmented Neutrophil
+  groups:
+   - NDC
+   - percent
+   - Myeloid
+  crit_points: [0, 10, 30]
+  normal_range: [10, 30]
+ Band neutrophil:
+  aliases:
+   - Band Neutrophil
+  groups:
+   - NDC
+   - percent
+   - Myeloid
+  crit_points: [0, 5, 15]
+  normal_range: [5, 15]
+ Plasma cell:
+  aliases:
+   - Plasma Cell
+  groups:
+   - NDC
+   - percent
+   - Lymphoid
+  crit_points: [0, 3, 10, 60]
+  normal_range: [0, 3]
+ Lymphocyte:
+  groups:
+   - NDC
+   - percent
+   - Lymphoid
+  crit_points: [0, 20, 50]
+  normal_range: [0, 20]
+ Erythroblast:
+  groups:
+   - NDC
+   - percent
+   - Erythroid
+  crit_points: [0, 5]
+  normal_range: [0, 5]
+ Basophilic normoblast:
+  aliases:
+   - Basophilic Normoblast
+  groups:
+   - NDC
+   - percent
+   - Erythroid
+  crit_points: [0, 1, 5]
+  normal_range: [1, 5]
+ Polychromatophilic normoblast:
+  aliases:
+   - Polychromatophilic Normoblast
+  groups:
+   - NDC
+   - percent
+   - Erythroid
+  crit_points: [0, 2, 10]
+  normal_range: [2, 10]
+ Normoblast:
+  groups:
+   - NDC
+   - percent
+   - Erythroid
+  crit_points: [0, 5, 15]
+  normal_range: [5, 15]
+ Monocyte:
+  groups:
+   - NDC
+   - percent
+  crit_points: [0, 2]
+  normal_range: [0, 2]
+ Eosinophil:
+  groups:
+   - NDC
+   - percent
+  crit_points: [0, 4]
+  normal_range: [0, 4]
+ Basophil:
+  groups:
+   - NDC
+   - percent
+  crit_points: [0, 1]
+  normal_range: [0, 1]
+ Mast cell:
+  aliases:
+   - Mast Cell
+  groups:
+   - NDC
+   - percent
+  crit_points: [0, 1]
+  normal_range: [0, 1]
+ Unclassified:
+  groups:
+   - NDC-like
+   - percent
+   - noncomparable
+ Macrophage:
+  groups:
+   - NDC-like
+   - count
+   - noncomparable
+ Stripped cell:
+  groups:
+   - NDC-like
+   - count
+ Others:
+  groups:
+   - NDC-like
+   - count
+   - noncomparable
+ Artifact:
+  groups:
+   - NDC-like
+   - count
+   - noncomparable
+ Megakaryocyte:
+  groups:
+   - NDC-like
+   - count
+ Particle presence:
+  groups:
+   - Evaluation parameter
+   - grade
+   - quality
+ Precursor cell presence:
+  groups:
+   - Evaluation parameter
+   - grade
+   - quality
+ Overall specimen quality:
+  groups:
+   - Evaluation parameter
+   - grade
+   - quality
+ Megakaryocyte estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ M:E ratio:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Myelopoiesis:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+   - lineage
+ Blast estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Blast Auer rods:
+  groups:
+   - Evaluation parameter
+   - grade
+   - morphology
+   - not in study
+ Blast granulation:
+  groups:
+   - Evaluation parameter
+   - grade
+   - morphology
+   - not in study
+ Blast nucleus morphology:
+  groups:
+   - Evaluation parameter
+   - grade
+   - morphology
+   - not in study
+ Erythropoiesis:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+   - lineage
+ Plasma cell estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Lymphocyte estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Eosinophil estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Basophil estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Mast cell estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Monocyte estimate:
+  groups:
+   - Evaluation parameter
+   - grade
+   - estimate
+ Exact M:E ratio:
+  groups:
+   - RBC morphology
+   - percent
+   - grade
+   - RBC shape
+ Total Myeloid:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Blast
+    - Promyelocyte
+    - Myelocyte
+    - Metamyelocyte
+    - Segmented neutrophil
+    - Band neutrophil
+ Total Erythroid:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Erythroblast
+    - Basophilic normoblast
+    - Polychromatophilic normoblast
+    - Normoblast
+ Total Lymphoid:
+  groups:
+   - NDC lineage total
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Plasma cell
+    - Lymphocyte
+ Investigator:
+  aliases:
+   - Signed Off By
+ Age:
+  groups:
+   - DemData
+ Sex:
+  groups:
+   - DemData
+ Diagnosis:
+  groups:
+   - DemData
+ SubDiagnosis:
+  groups:
+   - DemData
+ Findings:
+  groups:
+   - DemData
+ WHO_Criteria:
+  groups:
+   - DemData
+ Double:
+  groups:
+   - boolean
+ Total Nucleated:
+  aliases:
+   - Total nucleated cells
+  groups:
+   - percent
+   - derived
+  derived_from:
+   components:
+    - Blast
+    - Promyelocyte
+    - Myelocyte
+    - Metamyelocyte
+    - Segmented neutrophil
+    - Band neutrophil
+    - Plasma cell
+    - Lymphocyte
+    - Erythroblast
+    - Basophilic normoblast
+    - Polychromatophilic normoblast
+    - Normoblast
+    - Monocyte
+    - Eosinophil
+    - Basophil
+    - Mast cell

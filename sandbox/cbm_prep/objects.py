@@ -301,7 +301,7 @@ class MethodComparator:
             grade_df = sb.to_comparison_matrix(self, metadata=getattr(self, "metadata", None), **grade_kwargs)
 
             row_identifiers = kwargs.get('row_identifiers', ("SampleID", "Site"))
-            wide_df = pd.merge(val_df, grade_df, on=row_identifiers, how='inner')
+            wide_df = pd.merge(val_df, grade_df, on=row_identifiers, how='outer')
         elif 'needed_grades' in kwargs:
             # create kwargs for needed values
             grade_kwargs = kwargs
@@ -839,11 +839,12 @@ class MethodComparator:
                 try:
                     comp_func(level_a, level_b, var, dim_col=dim_col, row_filters=combined_filters, **kwargs)
                 except Exception as e:
-                    print(f"[batch_compare] Skipping comparison: "
-                          f"{dim_col} {level_a} vs {level_b}, "
-                          f"variable='{var}', "
-                          f"{stratum_label}. "
-                          f"Reason: {e}")
+                    # print(f"[batch_compare] Skipping comparison: "
+                    #       f"{dim_col} {level_a} vs {level_b}, "
+                    #       f"variable='{var}', "
+                    #       f"{stratum_label}. "
+                    #       f"Reason: {e}")
+                    continue
 
 
     def calc_all_biases(self, crit_points_dict):

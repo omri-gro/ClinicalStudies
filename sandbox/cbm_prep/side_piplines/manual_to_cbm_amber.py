@@ -7,20 +7,20 @@ from sandbox import *
 from pipelines import mean_manual_pipe, medium_pipe
 
 if __name__ == "__main__":
-    sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
+    sites = ['BWH', 'CPG']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
     test_arm = 'CBM'
     ref_arm = 'manual'
 
     bin_params = False
-    inter = True
+    inter = False
 
-    exprt_long = False
+    exprt_long = True
     exprt_mtrx = False
-    plot_reg = True
+    plot_reg = False
 
-    min_inv = False  # False or number  currently does not seem to make much of a difference
+    min_inv = False  # False or number
     rmv_brd = False
     max_unclass = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
@@ -29,12 +29,9 @@ if __name__ == "__main__":
     aftr_2nd_ssn = False
 
     suffix = ''
-    max_unclassstr = f'_maxuncls{max_unclass}' if max_unclass else ''
-    min_wbcstr = f'_minwbc{min_wbc}' if min_wbc else ''
-    rmv_brdstr = '_bdrrmv' if rmv_brd else ''
     diff500str = '_diff500' if diff500 else ''
     scnd_ssn_str = '_aftr2ndssn' if aftr_2nd_ssn else ''
-    save_name = f'mnl_{crf_ssn}ssn_{max_unclassstr}{min_wbcstr}{rmv_brdstr}_mininv{min_inv}{diff500str}{scnd_ssn_str}{suffix}'
+    save_name = f'mnl_{crf_ssn}ssn_maxuncls{max_unclass}_minwbc{min_wbc}_mininv{min_inv}_brdrmv-{rmv_brd}{diff500str}{scnd_ssn_str}{suffix}_amber'
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
@@ -42,15 +39,14 @@ if __name__ == "__main__":
 
     metadata = MetadataBundle(meta_path)
 
-    investigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1', 'Ana Catarina Silva': 'Rev1',
+    investigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1',
                         'Sarah Pereira Rodrigues': 'Rev1', 'Maria Buen Viana De Perio': 'Rev1',
                         'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Donald': 'Rev1',
                         'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
-                        'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2',
-                        'Harsha Hirani': 'Rev2', 'Harsha HIrani': 'Rev2',
+                        'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2', 'Harsha Hirani': 'Rev2',
                         'YAEL ASYEGH': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Yael S': 'Rev2', 'Yael Sayegh': 'Rev2',
                         'Yael S ': 'Rev2',
-                        'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'THU TRAN': 'Rev2',
+                        'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2',
                         'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
 
     df_srcs_list = []
@@ -108,10 +104,8 @@ if __name__ == "__main__":
     df = create_derived_variables_long(df, metadata)
 
 
-    cbm_file_name = '6sites_CBM.csv'
+    cbm_file_name = 'all_Amber_CBM.csv'
     cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison')
-    # cbm_file_name = 'BWH_newRGB_CBM.csv'
-    # cbm_df = medium_pipe(cbm_file_name, 'BWH', test_arm, metadata, dir=r'raw/cbm_method_comparison')
     cbm_df['Investigator'] = 'CBM'
 
     all_dfs = pd.concat([df, cbm_df])
@@ -134,17 +128,12 @@ if __name__ == "__main__":
 
     vars_to_test = metadata.variable_groups['WBC&PLT compare']
     grades_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
-        'PLT morphology'] + metadata.variable_groups['RBC arrangement']
+        'PLT morphology']
     grades_to_print = grades_to_test + ['ScanID']
     morph_vals_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups['PLT morphology']
     print_also = ['Unclassified WBC', "Total WBC"]
     vals_to_print = vars_to_test + print_also
     morph_vals_to_print = morph_vals_to_test + print_also
-
-    if diff500:
-        vars_to_test = ['Aberrant Lymphocyte', 'Plasma Cell']
-    elif aftr_2nd_ssn:
-        vars_to_test = ['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Smudge Cell']
 
     if exprt_long:
         include_in_export = vals_to_print + grades_to_print

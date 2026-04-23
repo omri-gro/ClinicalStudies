@@ -142,7 +142,8 @@ def medium_pipe(file_name, site, method, metadata, sheet_name='Sheet1', dir=None
     return df
 
 def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', dir=None,
-                      id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator'], **kwargs):
+                      id_vars=["SampleID", "Site", "Method", "FileName", 'Investigator'],
+                      recalc_diff=False, **kwargs):
     def stnd_bma_id(name):
         match = re.match(r"^([A-Za-z]*\d+)", str(name))
         return match.group(1) if match else name
@@ -152,7 +153,11 @@ def bma_prep_pipeline(file_name, site, method, metadata, sheet_name='Sheet1', di
     df = stnd_names(df, metadata.alias_map)
     df['SampleID'] = df['SampleID'].apply(stnd_bma_id)
 
-    if method == 'TEST':  # in future represent this as site rules
+    # if site == 'HUP' and method == 'TEST':
+    #     df.drop('Unclassified', axis=1, inplace=True)
+
+
+    if recalc_diff or method == 'TEST':  # in future represent this as site rules
         df = calc_diff(df, metadata, diff_cells="NDC")
         # df = calc_diff(df, metadata, diff_cells="NDC", additional_cells="NDC-like")
         # df = calc_diff(df, metadata, diff_cells="NDC lineage")

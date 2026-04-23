@@ -14,27 +14,21 @@ if __name__ == "__main__":
     ref_arm = 'manual'
 
     bin_params = False
-    inter = True
 
     exprt_long = False
     exprt_mtrx = False
     plot_reg = True
 
-    min_inv = False  # False or number  currently does not seem to make much of a difference
-    rmv_brd = False
+    min_inv = 2  # False or number
     max_unclass = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
     diff500 = False
-    crf_ssn = 'all'  # 'all' or 'post'
-    aftr_2nd_ssn = False
+    aftr_2nd_ssn = True
 
-    suffix = ''
-    max_unclassstr = f'_maxuncls{max_unclass}' if max_unclass else ''
-    min_wbcstr = f'_minwbc{min_wbc}' if min_wbc else ''
-    rmv_brdstr = '_bdrrmv' if rmv_brd else ''
+    suffix = '_byInv'
     diff500str = '_diff500' if diff500 else ''
     scnd_ssn_str = '_aftr2ndssn' if aftr_2nd_ssn else ''
-    save_name = f'mnl_{crf_ssn}ssn_{max_unclassstr}{min_wbcstr}{rmv_brdstr}_mininv{min_inv}{diff500str}{scnd_ssn_str}{suffix}'
+    save_name = f'mnl_maxuncls{max_unclass}_minwbc{min_wbc}_mininv{min_inv}_{diff500str}{scnd_ssn_str}{suffix}'
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
@@ -42,16 +36,23 @@ if __name__ == "__main__":
 
     metadata = MetadataBundle(meta_path)
 
-    investigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1', 'Ana Catarina Silva': 'Rev1',
-                        'Sarah Pereira Rodrigues': 'Rev1', 'Maria Buen Viana De Perio': 'Rev1',
-                        'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Donald': 'Rev1',
-                        'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
-                        'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2',
-                        'Harsha Hirani': 'Rev2', 'Harsha HIrani': 'Rev2',
-                        'YAEL ASYEGH': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Yael S': 'Rev2', 'Yael Sayegh': 'Rev2',
-                        'Yael S ': 'Rev2',
-                        'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'THU TRAN': 'Rev2',
-                        'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
+
+    investigators_map = {'Alina': 'Alina', 'Aubrey B Charlton': 'Aubrey', 'Thomas Muddiman': 'Thomas',
+                         'Sarah Pereira Rodrigues': 'Sarah', 'Maria Buen Viana De Perio': 'Buen',
+                         'Christine Lavoie': 'Christine', 'Ebikebuna Rufus': 'Ebi', 'Donald': 'Donald',
+                         'Sladana': 'Sladana', 'Deborah Swearingen': 'Deborah', 'Tony Omigie': 'Tony',
+                         'Joy Arthur': 'Joy', 'Tiffany I Highsmith': 'Tiffany', 'Tiffany I. Highsmith': 'Tiffany',
+                         'Harsha Hirani': 'Harsha',
+                         'YAEL ASYEGH': 'Yael', 'YAEL SAYEGH': 'Yael', 'Yael S': 'Yael', 'Yael Sayegh': 'Yael',
+                         'Yael S ': 'Yael',
+                         'Christopher Wright': 'Chris', 'Thu Tran': 'Thu',
+                         'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
+    investigators = ['Christine', 'Chris', 'Ebi', 'Thu',
+                     'Joy', 'Buen', 'Tiffany',
+                     'Aubrey', 'Deborah',
+                     'Alina', 'Sladana',
+                     'Thomas', 'Tony', 'Donald', 'Harsha',
+                     'Sarah', 'Yael']
 
     df_srcs_list = []
     for site in sites:
@@ -77,23 +78,15 @@ if __name__ == "__main__":
         diff500_df = read_to_df(diff500_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(diff500_df, include_rows=True)
 
-    if crf_ssn == "post":
-        rmv_file = 'flt_lists/pre_session_reviews.csv'
-        rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-        methd_comp = methd_comp.filter_by_df(rmv_df)
-
     if aftr_2nd_ssn:
         rmv_file = 'flt_lists/pre_2nd_session_reviews.csv'
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
 
-    # calculate mean investigator
     df = methd_comp.df
-
     df = df.query("Value!='--------'")
-
     df['Investigator'] = df['Investigator'].map(investigators_map)
-    df = add_mean_investigator(df, mthd=ref_arm, min_inv=min_inv)
+
 
     binary_vars = metadata.variable_groups["PLT morphology"] + metadata.variable_groups["RBC arrangement"] + metadata.variable_groups["WBC morphology"]
     raw_grade_cond=lambda d: (
@@ -110,8 +103,6 @@ if __name__ == "__main__":
 
     cbm_file_name = '6sites_CBM.csv'
     cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison')
-    # cbm_file_name = 'BWH_newRGB_CBM.csv'
-    # cbm_df = medium_pipe(cbm_file_name, 'BWH', test_arm, metadata, dir=r'raw/cbm_method_comparison')
     cbm_df['Investigator'] = 'CBM'
 
     all_dfs = pd.concat([df, cbm_df])
@@ -126,64 +117,20 @@ if __name__ == "__main__":
     rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
     methd_comp = methd_comp.filter_by_df(rmv_df)
 
-    # cases of borderline quality - dirty, investigators' comments on quality, etc.
-    if rmv_brd:
-        rmv_file = 'flt_lists/low_borderline_quality.csv'
-        rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-        methd_comp = methd_comp.filter_by_df(rmv_df)
-
     vars_to_test = metadata.variable_groups['WBC&PLT compare']
     grades_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
-        'PLT morphology'] + metadata.variable_groups['RBC arrangement']
+        'PLT morphology']
     grades_to_print = grades_to_test + ['ScanID']
     morph_vals_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups['PLT morphology']
     print_also = ['Unclassified WBC', "Total WBC"]
     vals_to_print = vars_to_test + print_also
     morph_vals_to_print = morph_vals_to_test + print_also
 
-    if diff500:
-        vars_to_test = ['Aberrant Lymphocyte', 'Plasma Cell']
-    elif aftr_2nd_ssn:
-        vars_to_test = ['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Smudge Cell']
-
     if exprt_long:
         include_in_export = vals_to_print + grades_to_print
         df_long = methd_comp.df.query(f"Variable in @include_in_export and Method=='{ref_arm}' and Investigator!='Mean Investigator'")[['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
         write_df_to_file(df_long, rf'comp_tables/{save_name}_long.csv')
 
-
-    if inter:
-        if bin_params:
-            methd_comp.batch_compare(levels_a='Rev1', levels_b='Rev2', variables=binary_vars,
-                                     dim_col='Investigator', comp_func='binary')
-            methd_comp.batch_compare(levels_a='Rev1', levels_b='Rev2', variables=binary_vars,
-                                     dim_col='Investigator', split_by='Site', comp_func='binary')
-            methd_comp.save_results(rf'results/mnl/{save_name}_bin_inter.csv', result_type="binary")
-
-        methd_comp.batch_compare(levels_a='Rev1', levels_b='Rev2', variables=vars_to_test,
-                                 dim_col='Investigator')
-        methd_comp.batch_compare(levels_a='Rev1', levels_b='Rev2', variables=vars_to_test,
-                                 dim_col='Investigator', split_by='Site')
-        methd_comp.save_results(rf'results/mnl/{save_name}_reg_inter.csv')
-        if plot_reg:
-            methd_comp.plot_all_regressions(f'results/mnl/{save_name}_reg_inter.pdf')
-        methd_comp.clean_calculations()
-
-    if exprt_mtrx:
-        methd_comp.export_comparison_matrix(
-            out_path=fr'comp_tables/{save_name}_vals_all_inv.csv',
-            row_identifiers=["Site", "SampleID"],
-            comparison_dims=("Variable", "Method", "Investigator"),
-            needed_vals=vals_to_print,
-            needed_grades=['ScanID'])
-
-        if min_wbc is False:
-            methd_comp.export_comparison_matrix(
-                out_path=fr'comp_tables/{save_name}_grades_all_inv.csv',
-                row_identifiers=["Site", "SampleID"],
-                comparison_dims=("Variable", "Method", "Investigator"),
-                needed_vals=morph_vals_to_test,
-                needed_grades=grades_to_print)
 
     if bin_params and exprt_mtrx:
         methd_comp.export_comparison_matrix(
@@ -200,10 +147,6 @@ if __name__ == "__main__":
             needed_grades=binary_vars + ['ScanID'],
             row_completeness="none")
 
-    # keep only mean investigator
-    methd_comp = methd_comp.apply_to_df('query', "Investigator=='Mean Investigator' or Investigator=='CBM'",
-                                        inplace=False)
-
     # binary parameters' sensitivity/specificity
     if bin_params:
         methd_comp.batch_compare(levels_a=ref_arm, levels_b=test_arm, variables=binary_vars, comp_func='binary')
@@ -219,9 +162,9 @@ if __name__ == "__main__":
             needed_grades=['ScanID'])
 
 
-
-    methd_comp.batch_fit([ref_arm], [test_arm], vars_to_test)
-    methd_comp.batch_fit([ref_arm], [test_arm], vars_to_test, site_filters=sites)
+    for var in vars_to_test:
+        for inv in investigators:
+            methd_comp.batch_compare(levels_a=ref_arm, levels_b=test_arm, variables=var, row_filters={'Investigator': [inv, test_arm]}, split_by='Site')
     methd_comp.save_results(rf'results/mnl/{save_name}_reg.csv')
     if plot_reg:
         methd_comp.plot_all_regressions(f'results/mnl/{save_name}_reg.pdf')

@@ -21,7 +21,7 @@ if __name__ == "__main__":
     inter = False
     comp_with_cbm = True
 
-    min_inv = 2  # False or number
+    min_inv = False  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
@@ -34,23 +34,23 @@ if __name__ == "__main__":
     rmv_brd no influence for clv (not enough borderline cases reviewed in ClV to make a difference)
     """
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}'
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_v443_Amber'
 
-    intr_by_pair = True
+    intr_by_pair = False
 
     exprt_long = True
     exprt_mtrx = True
     plot_reg = True
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
 
-    sites = ['BWH', 'LMU', 'TASMC']
+    sites = ['BWH']
     inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
-               'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Sladana Nikolic': 'Rev2', 'Nikolic Sladana': 'Rev2',
+               'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
     pair_map = {'Alina': 'Alina&Sladana', 'Alina KÃ¼pper': 'Alina&Sladana', 'Christine Lavoie': 'Christine&Chris', 'Ebikebuna Rufus': 'Ebi&Thu', 'Sarah Pereira Rodrigues': 'Sarah&Yael',
-               'Sladana': 'Alina&Sladana', 'Christopher Wright': 'Christine&Chris', 'Thu Tran': 'Ebi&Thu', 'YAEL SAYEGH': 'Sarah&Yael', 'Nikolic Sladana': 'Alina&Sladana',
+               'Sladana': 'Alina&Sladana', 'Christopher Wright': 'Christine&Chris', 'Thu Tran': 'Ebi&Thu', 'YAEL SAYEGH': 'Sarah&Yael',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
-    pairs = ['Christine&Chris', 'Ebi&Thu', 'Sarah&Yael', 'Alina&Sladana']
+    pairs = ['Christine&Chris', 'Ebi&Thu', 'Sarah&Yael']
     by_list = pairs if intr_by_pair and inter else sites
     test_arm = 'CBM'
     ref_arm = 'ClV'
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     df_srcs_list = []
     for site in sites:
-        # Currently cases with < min_inv investigators still appearing. Will be removed after mtrx_export.
+        # Currently cases with <min_inv investigators still appearing. Will be removed after mtrx_export.
 
         extra_calcs = True if crf_ssn not in ['pre', 'post'] else False  # in these cases mean investigator and derived variables will be added later
         df = clv_pipe(f'{site}_ClV.csv', site, metadata, dir=r'raw/cbm_method_comparison',
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         df_srcs_list = []
         df_srcs_list.append(df)
 
-    df = medium_pipe(f'6sites_CBM.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
+    df = medium_pipe(f'BWH_Amber_CBM.csv', 'BWH', 'CBM', metadata, dir=r'raw/cbm_method_comparison',
                      id_vars=id_vars_cbm)
     df["Investigator"] = test_arm
     df_srcs_list.append(df)
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     if exprt_long:
         arb_vars = metadata.variable_groups['RBC inclusions'] + metadata.variable_groups['RBC shape'] + metadata.variable_groups['RBC color']
         df_long = methd_comp.df.query(
-            f"Variable in @arb_vars and Method=='{ref_arm}' and Investigator=='Mean Investigator'")[
+            f"Variable in @arb_vars and Method=='{ref_arm}' and Investigator!='Mean Investigator'")[
             ['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
         df_long['Investigator'] = df_long['Investigator'].map(inv_map)
         write_df_to_file(df_long, rf'comp_tables/{save_name}_long.csv')
