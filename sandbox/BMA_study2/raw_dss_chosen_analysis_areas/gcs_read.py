@@ -1,6 +1,8 @@
 import json
 import yaml
 import re
+import glob
+import os
 from typing import Dict, List, Set, Tuple
 from collections import Counter, defaultdict
 import pandas as pd
@@ -108,6 +110,30 @@ def extract_case_metadata(events: List[dict]) -> dict:
         "Reviewer": reviewer_name
     }
 
+
+def get_particle_count(events: List[dict]) -> int:
+    """
+    Scans events from earliest to latest to find the feature_detection_results
+    and returns the length of the particles list.
+    """
+    # Iterate backwards (from the earliest event at the bottom of the list, upwards)
+    for event in reversed(events):
+        try:
+            # Attempt the deep dictionary lookup
+            particles = event['payload']['analysis']['cv_params']['feature_detection_results']['analysis_data']['region_data']['particles']
+
+            # If successful and it's a list, return its length immediately
+            if isinstance(particles, list):
+                return len(particles)
+
+        except (KeyError, TypeError):
+            # KeyError: A key in the chain is missing
+            # TypeError: An intermediate value was None instead of a dict
+            continue
+
+    # Fallback if the particles list is entirely missing from the file
+    return 0
+
 def get_approved_rois_at_signoff(events: List[dict]) -> Tuple[Set[str], Dict[str, Tuple[int, int, int, int]], int]:
     sign_off_idx = next(
         (i for i, e in enumerate(events)
@@ -152,6 +178,36 @@ def get_approved_rois_at_signoff(events: List[dict]) -> Tuple[Set[str], Dict[str
 
     return approved_roi_ids, roi_bounds, investigator_roi_count
 
+def get_rois_without_signoff(events: List[dict]) -> Tuple[Set[str], Dict[str, Tuple[int, int, int, int]], int]:
+    """
+    Extracts all ROIs in their latest configuration without relying on a SIGN_OFF event or SELECTED_REGIONS_UPDATED.
+    """
+    approved_roi_ids: Set[str] = set()
+    roi_bounds: Dict[str, Tuple[int, int, int, int]] = {}
+    investigator_roi_count = 0
+
+    # Events are reverse-chronological. The first time we see an ROI ID, it is its final state.
+    for event in events:
+        if event.get("event_type") == "ANALYSIS_REGION_UPDATED":
+            payload = event.get("payload", {})
+            roi_id = payload.get("roi_id")
+            bounds = payload.get("bounds")
+            roi_type = payload.get("params", {}).get("roi_type")
+
+            if roi_id and roi_id not in roi_bounds and bounds and roi_type != "BLANK":
+                approved_roi_ids.add(roi_id)
+                x_min = bounds["xleft"]
+                y_min = bounds["ytop"]
+                x_max = x_min + bounds["width"]
+                y_max = y_min + bounds["height"]
+                roi_bounds[roi_id] = (x_min, y_min, x_max, y_max)
+
+                # Check if investigator generated it
+                if payload.get("auto_suggested") is not True:
+                    investigator_roi_count += 1
+
+    return approved_roi_ids, roi_bounds, investigator_roi_count
+
 
 def get_user_reclassifications_at_signoff(events: List[dict]) -> Dict[str, int]:
     sign_off_idx = next(
@@ -173,6 +229,26 @@ def get_user_reclassifications_at_signoff(events: List[dict]) -> Dict[str, int]:
                     reclassifications[blob_id] = class_id
 
     return reclassifications
+
+
+def get_user_reclassifications_without_signoff(events: List[dict]) -> Dict[str, int]:
+    """
+    Extracts the latest user reclassifications by scanning from the beginning (latest) of the file.
+    """
+    reclassifications: Dict[str, int] = {}
+
+    for event in events:
+        if event.get("event_type") == "REGION_LABELS_USER_UPDATED":
+            labels = event.get("payload", {}).get("labels", [])
+            for label in labels:
+                blob_id = label.get("blob_id")
+                class_id = label.get("extra", {}).get("class_id")
+
+                if blob_id and class_id is not None and blob_id not in reclassifications:
+                    reclassifications[blob_id] = class_id
+
+    return reclassifications
+
 
 
 def calculate_final_classifications(
@@ -217,22 +293,43 @@ def process_single_scan(events_data: List[dict], labels_data: dict, with_reclass
         reclassifications = get_user_reclassifications_at_signoff(events_data)
         counts = counts = calculate_final_classifications(labels_data, roi_bounds, reclassifications, with_reclass=with_reclass)
         metadata = extract_case_metadata(events_data)
+        particles_count = get_particle_count(events_data)
 
         return {
             **metadata,
             "Approved ROIs": len(approved_roi_ids),
             "Investigator ROIs": inv_roi_count,
+            "Particles": particles_count,
             **counts
         }
     except ValueError as e:
         print(f"Skipping a scan: {e}")
         return {}
 
+def process_single_scan_no_signoff(events_data: List[dict], labels_data: dict, with_reclass=False) -> Dict[int, int]:
+    """Helper to run the analysis logic on a single scan lacking a SIGN_OFF event."""
+    try:
+        approved_roi_ids, roi_bounds, inv_roi_count = get_rois_without_signoff(events_data)
+        reclassifications = get_user_reclassifications_without_signoff(events_data)
+        counts = calculate_final_classifications(labels_data, roi_bounds, reclassifications, with_reclass=with_reclass)
+        metadata = extract_case_metadata(events_data)
+        particles_count = get_particle_count(events_data)
+
+        return {
+            **metadata,
+            "Approved ROIs": len(approved_roi_ids),
+            "Investigator ROIs": inv_roi_count,
+            "Particles": particles_count,
+            **counts
+        }
+    except Exception as e:
+        print(f"Skipping a scan due to error: {e}")
+        return {}
 
 # ==========================================
 # 3. Fast GCS Traversal and DataFrame Generation
 # ==========================================
-def get_latest_signoff_blobs(bucket_name: str, prefix: str) -> Dict[str, Dict[str, storage.Blob]]:
+def get_latest_signoff_blobs(bucket_name: str, prefix: str, folder_name: str = "SIGN_OFF") -> Dict[str, Dict[str, storage.Blob]]:
     """
     Scans the bucket and groups blobs. For each UUID that has a SIGNOFF folder,
     it identifies the latest datetime and returns references to its JSON blobs.
@@ -245,9 +342,9 @@ def get_latest_signoff_blobs(bucket_name: str, prefix: str) -> Dict[str, Dict[st
         prefix += '/'
 
     # We will use a regex to parse the blob name.
-    # Expected structure: some_path/<UUID>/SIGN_OFF/<datetime>/<filename>
+    # Expected structure: some_path/<UUID>/<folder_name>/<datetime>/<filename>
     # Group 1: UUID, Group 2: Datetime, Group 3: Filename
-    pattern = re.compile(rf"^{re.escape(prefix)}/?([^/]+)/SIGN_OFF/([^/]+)/(events\.json|labels\.json)$")
+    pattern = re.compile(rf"^{re.escape(prefix)}/?([^/]+)/{folder_name}/([^/]+)/(events\.json|labels\.json)$")
 
     # 1. Use delimiter='/' to get only the immediate "folders" under base_prefix
     iterator = bucket.list_blobs(prefix=prefix, delimiter='/')
@@ -265,20 +362,20 @@ def get_latest_signoff_blobs(bucket_name: str, prefix: str) -> Dict[str, Dict[st
         uuid = uuid_prefix[len(prefix):].strip('/')
 
         # The exact, targeted path to the SIGN_OFF folder
-        signoff_prefix = f"{uuid_prefix}SIGN_OFF/"
+        signoff_prefix = f"{uuid_prefix}{folder_name}/"
 
-        # 2. List ONLY the files inside this specific UUID's SIGN_OFF folder
+        # 2. List ONLY the files inside this specific UUID's <folder_name> folder
         # We don't need a delimiter here because we only care about what's inside SIGN_OFF
         signoff_blobs = list(bucket.list_blobs(prefix=signoff_prefix))
 
-        # If the list is empty, this UUID didn't have a SIGN_OFF folder. We skip it instantly!
+        # If the list is empty, this UUID didn't have a <folder_name> folder. We skip it instantly!
         if not signoff_blobs:
             continue
 
         datetimes_dict = defaultdict(dict)
 
         # Regex to capture the datetime and the filename
-        # Expected: some_path/<UUID>/SIGN_OFF/<datetime>/<filename>
+        # Expected: some_path/<UUID>/<folder_name>/<datetime>/<filename>
         pattern = re.compile(rf"^{re.escape(signoff_prefix)}([^/]+)/(events\.json|labels\.json)$")
 
         for blob in signoff_blobs:
@@ -296,7 +393,7 @@ def get_latest_signoff_blobs(bucket_name: str, prefix: str) -> Dict[str, Dict[st
             if "events.json" in files and "labels.json" in files:
                 latest_blobs_per_uuid[uuid] = files
 
-    print(f"Discovered {len(latest_blobs_per_uuid)} valid SIGN_OFF cases.")
+    print(f"Discovered {len(latest_blobs_per_uuid)} valid {folder_name} cases.")
     return latest_blobs_per_uuid
 
 
@@ -313,7 +410,7 @@ def clean_diff(
     working_diff_classes = set(differential_classes)
 
     # Track Metadata Columns
-    metadata_cols = ["Barcode", "Case ID", "Reviewer", "Sign-off Time", "Approved ROIs", "Investigator ROIs"]
+    metadata_cols = ["Barcode", "Particles", "Case ID", "Reviewer", "Sign-off Time", "Approved ROIs", "Investigator ROIs"]
 
     # 1. Combine Eosinophils
     if "Pro Eosinophil" in df.columns:
@@ -368,7 +465,7 @@ def clean_diff(
     return df[final_order]
 
 # ==========================================
-# 5. Main Orchestration Function
+# 5. Main Orchestration Functions
 # ==========================================
 def compile_study_results(bucket_name: str, prefix: str, classes_yml_path: str,
                           exclude_unclassified=False, include_metadata=True, with_reclass=False,
@@ -419,21 +516,210 @@ def compile_study_results(bucket_name: str, prefix: str, classes_yml_path: str,
     return final_df
 
 
+def compile_local_events_study(
+        local_events_dir: str,
+        bucket_name: str,
+        gcs_labels_prefix: str,
+        classes_yml_path: str,
+        exclude_unclassified=False,
+        include_metadata=True,
+        with_reclass=False,
+        labels_dir_name='SCAN_READY'
+) -> pd.DataFrame:
+    """
+    Iterates over local `<UUID>.json` files, fetches their matching `labels.json`
+    from GCS, and compiles the final Pandas DataFrame.
+    """
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+
+    # Ensure standard prefix formatting
+    if not gcs_labels_prefix.endswith('/'):
+        gcs_labels_prefix += '/'
+
+    all_scan_results = {}
+
+    # Find all local JSON files
+    local_files = glob.glob(os.path.join(local_events_dir, "*.json"))
+    print(f"Found {len(local_files)} local event files in {local_events_dir}.")
+
+    for local_filepath in local_files:
+        # Extract UUID from the filename (e.g., "path/to/123-uuid.json" -> "123-uuid")
+        uuid = os.path.splitext(os.path.basename(local_filepath))[0]
+        print(f"Processing UUID: {uuid}...")
+
+        # 1. Load the local events file
+        with open(local_filepath, 'r') as f:
+            events_data = json.load(f)
+
+        # 2. Hunt for the latest labels.json in GCS for this UUID
+        # Because we don't know the exact datetime folder without SIGN_OFF,
+        # we list all blobs under the UUID prefix and take the latest labels.json
+        uuid_prefix = f"{gcs_labels_prefix}{uuid}/{labels_dir_name}/"
+        blobs = list(bucket.list_blobs(prefix=uuid_prefix))
+
+        label_blobs = [b for b in blobs if b.name.endswith('labels.json')]
+        if not label_blobs:
+            print(f"  -> WARNING: No labels.json found in GCS for UUID {uuid}'s {labels_dir_name}. Skipping.")
+            continue
+
+        # Standard alphabetical sorting guarantees the latest datetime folder is last
+        latest_label_blob = sorted(label_blobs, key=lambda b: b.name)[-1]
+
+        labels_text = latest_label_blob.download_as_text()
+        labels_data = json.loads(labels_text)
+
+        # 3. Process data using the no-signoff logic
+        counts = process_single_scan_no_signoff(events_data, labels_data, with_reclass=with_reclass)
+        if counts:
+            all_scan_results[uuid] = counts
+
+    print("\nCompiling final Pandas DataFrame...")
+
+    df = pd.DataFrame.from_dict(all_scan_results, orient='index')
+
+    # Safe Integer casting only for numeric columns (avoids crashing on metadata strings)
+    numeric_cols = df.select_dtypes(include=['number']).columns
+    df[numeric_cols] = df[numeric_cols].fillna(0).astype(int)
+
+    # Rename Columns using mapping dictionary (ignores strings)
+    print("Loading class dictionary from YAML...")
+    class_mapping, differential_classes = load_class_mapping(classes_yml_path)
+    df.columns = [
+        class_mapping.get(c, c if isinstance(c, str) else f"Unknown_Class_{c}")
+        for c in df.columns
+    ]
+    df.index.name = "UUID"
+
+    # Run the final polish
+    final_df = clean_diff(
+        df,
+        differential_classes,
+        exclude_unclassified=exclude_unclassified,
+        include_metadata=include_metadata
+    )
+
+    return final_df
+
+def compile_local_events_study(
+        local_events_dir: str,
+        bucket_name: str,
+        gcs_labels_prefix: str,
+        classes_yml_path: str,
+        exclude_unclassified=False,
+        include_metadata=True,
+        with_reclass=False,
+        labels_dir_name='SCAN_READY',
+        uuids_list=[]
+) -> pd.DataFrame:
+    """
+    Iterates over local `<UUID>.json` files, fetches their matching `labels.json`
+    from GCS, and compiles the final Pandas DataFrame.
+    """
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+
+    # Ensure standard prefix formatting
+    if not gcs_labels_prefix.endswith('/'):
+        gcs_labels_prefix += '/'
+
+    all_scan_results = {}
+
+    # Find all local JSON files
+    local_files = glob.glob(os.path.join(local_events_dir, "*.json"))
+    print(f"Found {len(local_files)} local event files in {local_events_dir}.")
+
+    for local_filepath in local_files:
+        # Extract UUID from the filename (e.g., "path/to/123-uuid.json" -> "123-uuid")
+        uuid = os.path.splitext(os.path.basename(local_filepath))[0]
+        if uuids_list and uuid not in uuids_list:
+            continue
+
+        print(f"Processing UUID: {uuid}...")
+
+        # 1. Load the local events file
+        with open(local_filepath, 'r') as f:
+            events_data = json.load(f)
+
+        # 2. Hunt for the latest labels.json in GCS for this UUID
+        # Because we don't know the exact datetime folder without SIGN_OFF,
+        # we list all blobs under the UUID prefix and take the latest labels.json
+        uuid_prefix = f"{gcs_labels_prefix}{uuid}/{labels_dir_name}/"
+        blobs = list(bucket.list_blobs(prefix=uuid_prefix))
+
+        label_blobs = [b for b in blobs if b.name.endswith('labels.json')]
+        if not label_blobs:
+            print(f"  -> WARNING: No labels.json found in GCS for UUID {uuid}'s {labels_dir_name}. Skipping.")
+            continue
+
+        # Standard alphabetical sorting guarantees the latest datetime folder is last
+        latest_label_blob = sorted(label_blobs, key=lambda b: b.name)[-1]
+
+        labels_text = latest_label_blob.download_as_text()
+        labels_data = json.loads(labels_text)
+
+        # 3. Process data using the no-signoff logic
+        counts = process_single_scan_no_signoff(events_data, labels_data, with_reclass=with_reclass)
+        if counts:
+            all_scan_results[uuid] = counts
+
+    print("\nCompiling final Pandas DataFrame...")
+
+    df = pd.DataFrame.from_dict(all_scan_results, orient='index')
+
+    # Safe Integer casting only for numeric columns (avoids crashing on metadata strings)
+    numeric_cols = df.select_dtypes(include=['number']).columns
+    df[numeric_cols] = df[numeric_cols].fillna(0).astype(int)
+
+    # Rename Columns using mapping dictionary (ignores strings)
+    print("Loading class dictionary from YAML...")
+    class_mapping, differential_classes = load_class_mapping(classes_yml_path)
+    df.columns = [
+        class_mapping.get(c, c if isinstance(c, str) else f"Unknown_Class_{c}")
+        for c in df.columns
+    ]
+    df.index.name = "UUID"
+
+    # Run the final polish
+    final_df = clean_diff(
+        df,
+        differential_classes,
+        exclude_unclassified=exclude_unclassified,
+        include_metadata=include_metadata
+    )
+
+    return final_df
 
 
 
 if __name__ == "__main__":
-    machine = "scopiobox1060"
+    machine = "scopiobox3217"
     BUCKET = "scopio_event_sync_hematology_prod"
     BASE_DIR = "events"
     CLASSES_FILE = "label_classes.yml"  # Path to your local classes mapping file
 
+    not_signed = False  # if True then search does not require sign-off and just takes latest chosen analysis areas
+
     bucket_name = BUCKET
     PREFIX = fr'{BASE_DIR}/{machine}'
 
+
+
     # Run the pipeline
-    final_df = compile_study_results(BUCKET, PREFIX, CLASSES_FILE,
-                                     exclude_unclassified=False, include_metadata=True, with_reclass=False)
+    if machine == "scopiobox1060" or not_signed:
+        LOCAL_EVENTS_DIR = f"./{machine}_events"
+        final_df = compile_local_events_study(
+            local_events_dir=LOCAL_EVENTS_DIR,
+            bucket_name=BUCKET,
+            gcs_labels_prefix=PREFIX,
+            classes_yml_path=CLASSES_FILE,
+            exclude_unclassified=False,
+            include_metadata=True,
+            with_reclass=True
+        )
+    else:
+        final_df = compile_study_results(BUCKET, PREFIX, CLASSES_FILE,
+                                         exclude_unclassified=False, include_metadata=True, with_reclass=False)
 
     # Display the final results
     print("\nFinal Results DataFrame:")

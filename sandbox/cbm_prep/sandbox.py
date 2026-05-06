@@ -1031,7 +1031,7 @@ def min_inv_filt(df, mthd, min_inv=2):
         print(
             f"Flagging {len(flagged)} (SampleID, Site) pairs where kept variables fraction "
             f"< {report_if_kept_frac_lt:.2f} after requiring >= {min_inv} investigators per variable.\n"
-            f"Examples:\n{flagged.head(5).reset_index().to_string(index=False)}"
+            f"Examples:\n{flagged.head(30).reset_index().to_string(index=False)}"
         )
 
 

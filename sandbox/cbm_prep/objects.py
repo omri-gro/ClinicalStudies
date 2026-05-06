@@ -266,6 +266,15 @@ class MethodComparator:
             If the called method returns a DataFrame and inplace=False,
             returns a new MethodComparator. Otherwise returns the raw result.
         """
+        # If the method relies on caller environment variables, inject the caller's frame.
+        if function in ('query', 'eval'):
+            # Grab the caller's frame (1 level up the stack)
+            caller_frame = sys._getframe(1)
+
+            # Pass the caller's locals and globals to pandas
+            kwargs.setdefault('local_dict', caller_frame.f_locals)
+            kwargs.setdefault('global_dict', caller_frame.f_globals)
+
         # Get the DataFrame method dynamically
         method = getattr(self.df, function, None)
         if method is None or not callable(method):
@@ -616,6 +625,51 @@ class MethodComparator:
 
         return x, y, ids
 
+    def confusion_matrix(self,
+                         level_a: str,
+                         level_b: str,
+                         variable: str,
+                         row_filters: Optional[List[str]] = None,
+                         site_filter: Optional[List[str]] = None,
+                         dim_col="Method",
+                         measurement_col="Grade",  # Default to Grade to avoid numeric coercion
+                         id_cols: Tuple[str, ...] = ("SampleID", "Site"),
+                         **kwargs):
+        """Generate a confusion matrix (crosstab) for qualitative/ordinal comparisons."""
+        if row_filters is None and site_filter is not None:
+            row_filters = {"Site": site_filter}
+
+        # Extract pairwise categorical/ordinal arrays
+        x, y, ids = self._prepare_pairwise_arrays(level_a, level_b, variable, dim_col,
+                                                  row_filters=row_filters,
+                                                  measurement_col=measurement_col,
+                                                  id_cols=id_cols,
+                                                  on_duplicates="first")
+
+        # Generate the confusion matrix
+        # Note: Using categorical dtypes in your DataFrame earlier in the pipeline
+        # ensures crosstab includes empty classes (0 counts).
+        xtab = pd.crosstab(x, y,
+                           rownames=[f"Ref ({level_a})"],
+                           colnames=[f"Test ({level_b})"],
+                           dropna=False)
+
+        record = {
+            "comparison_dim": dim_col,
+            "level_a": level_a,
+            "level_b": level_b,
+            "variable": variable,
+            "stratum": dict(row_filters or {}),
+            "x": x,
+            "y": y,
+            "ids": ids,
+            "xtab": xtab  # Store the raw dataframe matrix
+        }
+
+        # Store in metrics (or create a dedicated self.qualitative list)
+        self.metrics.append(record)
+        return record
+
 
     def sen_spe(self,
                 level_a: str,  # e.g. reference method
@@ -793,8 +847,10 @@ class MethodComparator:
         if not callable(comp_func):
             if comp_func in ['Regression', 'regression', 'deming']:
                 comp_func = self.fit
-            elif comp_func == 'binary':
+            elif comp_func in ['binary', 'sen_spe']:
                 comp_func = self.sen_spe
+            elif comp_func in ['confusion_matrix', 'crosstab', 'qualitative']:
+                comp_func = self.confusion_matrix
             else:
                 raise ValueError(f'{comp_func} not appropriate comparison function')
 
@@ -1010,6 +1066,92 @@ class MethodComparator:
             rows.append(row)
         return pd.DataFrame(rows)
 
+    def crosstabs_to_dataframe(self) -> pd.DataFrame:
+        """
+        Convert confusion matrices in MethodComparator.metrics to a flat DataFrame.
+        Expects metrics attribute to contain records with an "xtab" key.
+        """
+        rows = []
+        for rec in self.metrics:
+            xtab = rec.get("xtab")
+            if xtab is None:
+                continue
+
+            base_row = self._base_result_row(rec)
+
+            # Melt the crosstab to extract Ref Class, Test Class, and Count
+            # This turns a 3x3 matrix into 9 rows of data
+            melted = xtab.reset_index().melt(id_vars=xtab.index.name,
+                                             var_name="Test Grade",
+                                             value_name="Count")
+
+            # Rename the reference column for clarity
+            melted.rename(columns={xtab.index.name: "Ref Grade"}, inplace=True)
+
+            for _, match_row in melted.iterrows():
+                row = base_row.copy()
+                row.update({
+                    "Ref Grade": match_row["Ref Grade"],
+                    "Test Grade": match_row["Test Grade"],
+                    "Count": match_row["Count"],
+                    "Agreement": "Match" if match_row["Ref Grade"] == match_row["Test Grade"] else "Mismatch"
+                })
+                rows.append(row)
+
+        return pd.DataFrame(rows)
+
+    def export_confusion_matrices_to_excel(self, filepath: str):
+        """
+        Export qualitative confusion matrices to a single Excel sheet, stacked vertically.
+        As requested, Reference methods are columns, Test methods are rows.
+        """
+        # Ensure the output is an Excel file, as CSV doesn't support this layout cleanly
+        if not filepath.lower().endswith(('.xlsx', '.xls')):
+            filepath += '.xlsx'
+
+        # Use ExcelWriter to append multiple matrices to the same sheet
+        with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+            start_row = 0
+            sheet_name = 'Confusion Matrices'
+
+            for rec in self.metrics:
+                xtab = rec.get("xtab")
+                if xtab is None:
+                    continue
+
+                # 1. Format the metadata title for this matrix
+                var_name = rec["variable"]
+                level_a = rec["level_a"]
+                level_b = rec["level_b"]
+
+                # Use your existing formatting utility
+                stratum_str = format_filter_label(rec.get("stratum", {}))
+
+                title = f"Variable: {var_name} | Ref: {level_a} vs Test: {level_b}"
+                if stratum_str:
+                    title += f" | {stratum_str}"
+
+                # 2. Transpose the matrix to make Ref=Columns and Test=Rows
+                matrix_to_export = xtab.T
+                matrix_to_export.index.name = f"Test ({level_b})"
+                matrix_to_export.columns.name = f"Ref ({level_a})"
+
+                # 3. Write the title string (converted to a 1x1 DataFrame for easy writing)
+                pd.DataFrame([title]).to_excel(writer, sheet_name=sheet_name,
+                                               startrow=start_row, startcol=0,
+                                               header=False, index=False)
+
+                # 4. Write the transposed matrix right below the title
+                matrix_to_export.to_excel(writer, sheet_name=sheet_name,
+                                          startrow=start_row + 1, startcol=0)
+
+                # 5. Increment start_row for the next matrix
+                # (1 row for title + matrix height + 1 row for columns + 2 rows of blank padding)
+                start_row += matrix_to_export.shape[0] + 4
+
+        print(f"Successfully exported confusion matrices to {filepath}")
+
+
     @staticmethod
     def _base_result_row(rec: dict) -> dict:
         """
@@ -1029,12 +1171,18 @@ class MethodComparator:
         """
         Save MethodComparator.results to CSV or Excel.
         """
+        if result_type in ["matrix_visual", "stacked_xtab"]:
+            self.export_confusion_matrices_to_excel(filepath)
+            return
+
         if result_type in ["reg", "Regression"]:
             df = self.regressions_to_dataframe()
         elif result_type in ["bias", "Bias"]:
             df = self.biases_to_dataframe()
         elif result_type in ["senspe", "SenSpe", "binary", "Binary"]:
             df = self.metrics_to_dataframe()
+        elif result_type in ['confusion_matrix', 'Confusion Matrix']:
+            df = self.crosstabs_to_dataframe()
         else:
             raise ValueError(f"{result_type} result_type not supported")
 

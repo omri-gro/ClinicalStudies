@@ -32,14 +32,14 @@ if __name__ == "__main__":
     """ currently added change where arbitrator is counted as just another investigator for calculation of mean 
         return commented section (remove for arbitration + add mean investigator) in loop and remove it from for all_df """
 
-    suffix = '_additional_omr-based_arbitrations'
+    suffix = ''
     save_name = f'BMA_study_results{suffix}'
     meta_path = r'config_BMA.yaml'
     sites = ["OHSU", "HUP", "BWH"]
     arbitrators = ['Phil Raess', 'Olga Pozdnyakova', 'Christopher Hergott', 'OP', 'Arbitrator']
 
     compare_methods = True
-    raw_dss = False
+    raw_dss = True
     inter = False
     inter_to_include_arbitrated = False
 
@@ -47,17 +47,21 @@ if __name__ == "__main__":
     exprt_long = True
     plot_reg = True
     keep_names = False  # use investigators' full names - creates very wide 'all investigators' comparison matrix if True
+    min_inv_site = 2
 
     other_removed = True   # for filtering out samples for side analysis
     rmv_unclass = False    # re-calculate differential as if all unclassified were moved to dirt/other
     pooled_params = True   # analyze for pooled parameters like Erythroblast&BasophilicNormoblast - only when rmv_unclass False
+    add_filtering = True   # analysis of promyelocytes without APLs, analysis of erythroid stages without HUP
+    only_merged = False
+
 
     investigators_map = {'Todd Williams': 'Rev1', 'Wei Xie': 'Rev2', 'Phil Raess': 'Arbitrator',
                          'TW': 'Rev1', 'WX': 'Rev2', 'PR': 'Arbitrator',
                          'AB': 'Rev1', 'AS': 'Rev2', 'DL': 'Rev3', 'OP': 'Arbitrator',
                          'Adam Bagg': 'Rev1', 'Annapurna Saksena': 'Rev2', 'Dorottya Laczko': 'Rev3', 'Olga Pozdnyakova': 'Arbitrator',
                          'Elizabeth Morgan': 'Rev1', 'Habibe Kurt': 'Rev2', 'Robert Hasserjian': 'Rev3',
-                         'Sam Sadigh': 'Rev4', "Christopher Hergott": 'Arbitrator',
+                         'Sam Sadigh': 'Rev4', "Megan Fitzpatrick": 'Rev5', "Vignesh Shanmugam": 'Rev6', "Christopher Hergott": 'Arbitrator',
                          'Rev1': 'Rev1', 'Rev2': 'Rev2',
                          'Mean Investigator': 'Mean Investigator'}
     cur_dir = os.path.abspath(os.path.dirname(__file__))
@@ -72,8 +76,6 @@ if __name__ == "__main__":
     metadata = MetadataBundle(meta_path)
     collect_dfs = []
     for site in sites:
-        min_inv_site = 2
-
         ref_df = bma_prep_pipeline(f'{site}_CRF_REF.csv', site, 'REF', metadata, dir=read_dir, recalc_diff=rmv_unclass)
         test_df = bma_prep_pipeline(f'{site}_CRF_TEST.csv', site, 'TEST', metadata, dir=read_dir)
 
@@ -97,37 +99,6 @@ if __name__ == "__main__":
 
         collect_dfs.append(pd.concat([ref_df, test_df]))
 
-    if raw_dss:
-        df_dss = read_to_df(f'raw_DSS.csv', file_dir=read_dir)
-        df_dss = stnd_names(df_dss, metadata.alias_map)
-        df_dss["Method"] = 'DSS'
-        df_dss["FileName"] = os.path.basename(f'raw_DSS.csv')
-        df_dss.columns = df_dss.columns.str.strip()
-        df_dss = calc_diff(df_dss, metadata, diff_cells="NDC")
-        id_vars = ["SampleID", "Site", "Method", "FileName", 'Investigator']
-        df_dss = pivot_long(df_dss, id_vars=id_vars)
-        df_dss = add_grade_column(df_dss, metadata)
-        df_dss = df_dss.dropna(subset=["Value", "Grade"], how="all")
-        df_dss = create_derived_variables_long(df_dss, metadata)
-
-        # uncomment this section to only show mean of all scans in the wide comparison matrix
-        # df_dss = add_mean_investigator(df_dss, mthd='DSS', min_inv=0)
-        # df_dss = df_dss.query("Investigator=='Mean Investigator'", inplace=False)
-
-        # currently BWH only relevant when analysing DSS; add it to main for loop once BWH digital reviews arrive
-        # site = 'BWH'
-        # ref_df = bma_prep_pipeline(f'{site}_CRF_REF.csv', site, 'REF', metadata, dir=read_dir)
-        # df_arb = read_to_df('to_arbitration.csv', ref_df, file_dir=read_dir)
-        # ref_df = removed_for_arbitration(ref_df, df_arb, arbitrators)
-        # ref_df = add_mean_investigator(ref_df, mthd='REF', min_inv=2)
-        # id_lookup = df_map.set_index('REF Barcode')['TEST Barcode']
-        # mapped_ids = ref_df['SampleID'].map(id_lookup)
-        # ref_df['SampleID'] = mapped_ids.fillna(ref_df['SampleID'])
-        # df_dss = pd.concat([ref_df, df_dss])
-
-        collect_dfs.append(df_dss)
-
-
     all_dfs = pd.concat(collect_dfs)
     if not keep_names:
         all_dfs['Investigator'] = all_dfs['Investigator'].map(investigators_map)
@@ -148,26 +119,53 @@ if __name__ == "__main__":
     all_dfs = add_mean_investigator(all_dfs, mthd='REF', min_inv=0)
     all_dfs = add_mean_investigator(all_dfs, mthd='TEST', min_inv=0)
     if raw_dss:
-        all_dfs = add_mean_investigator(all_dfs, mthd='DSS', min_inv=0)
+        df_dss = read_to_df(f'raw_DSS.csv', file_dir=read_dir)
+        df_dss = stnd_names(df_dss, metadata.alias_map)
+        df_dss["Method"] = 'DSS'
+        df_dss["FileName"] = os.path.basename(f'raw_DSS.csv')
+        df_dss.columns = df_dss.columns.str.strip()
+
+        # for raw dss we are not including unclassified in differential calculation
+        df_dss = df_dss.drop('Unclassified', axis=1)
+
+        df_dss = calc_diff(df_dss, metadata, diff_cells="NDC")
+        id_vars = ["SampleID", "Site", "Method", "FileName", 'Investigator']
+        df_dss = pivot_long(df_dss, id_vars=id_vars)
+        df_dss = add_grade_column(df_dss, metadata)
+        df_dss = df_dss.dropna(subset=["Value", "Grade"], how="all")
+        df_dss = create_derived_variables_long(df_dss, metadata)
+
+        # uncomment this section to only show mean of all scans in the wide comparison matrix
+        df_dss = add_mean_investigator(df_dss, mthd='DSS', min_inv=0)
+        df_dss = df_dss.query("Investigator=='Mean Investigator'", inplace=False)
+        all_dfs = pd.concat([all_dfs, df_dss])
+
     all_dfs = add_pos_column(all_dfs, metadata)
+
+    methd_comp = MethodComparator(all_dfs)
+    methd_comp = methd_comp.apply_to_df('query', "Investigator=='Mean Investigator'", inplace=False)
+
+    rmv_file = 'flt_lists/slides_to_remove.csv'
+    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
+    methd_comp = methd_comp.filter_by_df(rmv_df)
+
+    if only_merged:
+        merged_cases_path = 'flt_lists/merged_cases.csv'
+        merged_cases_df = read_to_df(merged_cases_path, file_dir=os.getcwd())
+        methd_comp = methd_comp.filter_by_df(merged_cases_df, include_rows=True)
+        save_name = f'{save_name}_merged_cases'
 
     if exprt_long:
         long_df_to_exprt = all_dfs   # add here query if needed
         long_df_to_exprt.to_csv(fr'{cur_dir}/comp_tables/{save_name}_long.csv', index=False)
 
-    methd_comp = MethodComparator(all_dfs)
-    methd_comp = methd_comp.apply_to_df('query', "Investigator=='Mean Investigator'", inplace=False)
-
-    if other_removed:
-        rmv_file = 'flt_lists/slides_to_remove.csv'
-        rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-        methd_comp = methd_comp.filter_by_df(rmv_df)
 
     ndc_vars_list = metadata.variable_groups['NDC'] + metadata.variable_groups['NDC lineage total']
     ndc_vars_list_to_print = ndc_vars_list + ['Total Nucleated']
     needed_rows = methd_comp.df[methd_comp.df['Variable'].isin(ndc_vars_list)]
     grade_vars_list = metadata.variable_groups['grade']
     ids_list = ['scan_id', 'case_id']
+
 
     if exprt_mtrx:
         comp_table = methd_comp.export_comparison_matrix(needed_vars=ndc_vars_list_to_print,
@@ -190,10 +188,24 @@ if __name__ == "__main__":
         comp_table = comp_table.set_index(['TEST Barcode', 'REF Barcode', 'Site'])
         comp_table.to_csv(fr'{cur_dir}/comp_tables/{save_name}_all_investigators.csv', index=True)
 
+
+    if add_filtering:
+        # analysis of promyelocytes is without APL slides
+        apls_file = 'flt_lists/APLs.csv'
+        apls_df = read_to_df(apls_file, file_dir=os.getcwd())
+        apls_df['Variable'] = 'Promyelocyte'
+        methd_comp = methd_comp.filter_by_df(apls_df)
+
+        # the multi-site analysis for erythroid stages does not cover HUP
+        erythroid_stages = ['Erythroblast', 'Basophilic normoblast', 'Polychromatophilic normoblast', 'Normoblast']
+        methd_comp = methd_comp.apply_to_df('query', "Variable not in @erythroid_stages or Site != 'HUP'", inplace=False)
+
+
     # main method comparison regressions + biases
     if compare_methods:
         methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list)
-        methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list, site_filters=sites)
+        if not only_merged:
+            methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list, site_filters=sites)
         methd_comp.calc_all_biases(metadata.crit_points)
         methd_comp.save_results(rf'results/{save_name}_bma_reg.csv')
         methd_comp.save_results(rf'results/{save_name}_bias.xlsx', result_type='bias')
@@ -226,7 +238,3 @@ if __name__ == "__main__":
         methd_comp.save_results(rf'results/{save_name}_raw_dss.csv')
         if plot_reg:
             methd_comp.plot_all_regressions(f'results/{save_name}_raw_dss.pdf')
-
-
-
-

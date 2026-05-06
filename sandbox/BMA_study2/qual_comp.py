@@ -126,6 +126,23 @@ if __name__ == "__main__":
     methd_comp.batch_compare(levels_a='REF',
                              levels_b='TEST',
                              variables=quality_params,
-                             comp_func='binary',
+                             comp_func='confusion_matrix',
+                             id_cols=('SampleID', 'Investigator'))
+
+    methd_comp.batch_compare(levels_a='REF',
+                             levels_b='TEST',
+                             variables=quality_params,
+                             comp_func='confusion_matrix',
                              split_by='Site',
+                             id_cols=('SampleID', 'Investigator'))
+
+    methd_comp.save_results(fr'{cur_dir}/results/{save_name}_conf_mat.csv', result_type='confusion_matrix')
+    methd_comp.save_results(fr'{cur_dir}/results/{save_name}_conf_mat_vis.xlsx', result_type='matrix_visual')
+
+    methd_comp.clean_calculations()
+
+    methd_comp.batch_compare(levels_a='REF',
+                             levels_b='TEST',
+                             variables=quality_params,
+                             comp_func='confusion_matrix',
                              id_cols=('SampleID', 'Investigator'))
