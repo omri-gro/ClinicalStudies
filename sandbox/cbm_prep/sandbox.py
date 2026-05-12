@@ -1297,6 +1297,8 @@ def to_comparison_matrix(
         Returns the wide DataFrame (also saved to Excel/CSV per out_path).
     """
     df = _as_df(obj_or_df)
+    comparison_dims = _ensure_list(comparison_dims)
+    row_identifiers = _ensure_list(row_identifiers)
 
     if value_col == 'Positive':
         df['Positive'] = df['Positive'].astype(str)

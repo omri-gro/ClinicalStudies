@@ -39,7 +39,7 @@ def removed_for_arbitration(df_raw, df_arb, arbitrator):
 if __name__ == "__main__":
     suffix = ''
     save_name = f'BMA_normals_search'
-    meta_path = r'config_BMA_extended_RI.yaml'
+    meta_path = r'config_BMA.yaml'
     sites = ["OHSU", "HUP", "BWH"]
     arbitrators = ['Phil Raess', 'Olga Pozdnyakova', 'Christopher Hergott', 'OP', 'Arbitrator']
 
@@ -68,3 +68,39 @@ if __name__ == "__main__":
     all_dfs = pd.concat(collect_dfs)
 
     df_arb = read_to_df('to_arbitration.csv', file_dir=read_dir)
+    all_dfs = removed_for_arbitration(all_dfs, df_arb, arbitrators)
+    all_dfs = add_mean_investigator(all_dfs, mthd='REF', min_inv=0)
+    all_dfs = add_mean_investigator(all_dfs, mthd='TEST', min_inv=0)
+
+    all_dfs = add_pos_column(all_dfs, metadata)
+
+    methd_comp = MethodComparator(all_dfs)
+    methd_comp = methd_comp.apply_to_df('query', "Investigator=='Mean Investigator' and Method=='TEST'", inplace=False)
+
+    rmv_file = 'flt_lists/slides_to_remove.csv'
+    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
+    methd_comp = methd_comp.filter_by_df(rmv_df)
+
+    ndc_vars_list = metadata.variable_groups['NDC'] + metadata.variable_groups['NDC lineage total']
+    ndc_vars_list.remove('Unclassified')
+
+    comp_table = methd_comp.export_comparison_matrix(needed_vars=ndc_vars_list,
+                                                     value_col='Positive',
+                                                     comparison_dims="Variable",
+                                                     row_completeness="any")
+    comp_table.rename(columns={'SampleID': 'TEST Barcode'}, inplace=True)
+    id_lookup = df_map.set_index('TEST Barcode')['REF Barcode']
+    comp_table['REF Barcode'] = comp_table['TEST Barcode'].map(id_lookup)
+    comp_table = comp_table.set_index(['TEST Barcode', 'REF Barcode', 'Site'])
+    comp_table.to_csv(fr'{cur_dir}/comp_tables/{save_name}_test_positivity.csv', index=True)
+
+    comp_table = methd_comp.export_comparison_matrix(needed_vars=ndc_vars_list,
+                                                     value_col='Value',
+                                                     comparison_dims="Variable",
+                                                     row_completeness="any")
+    comp_table.rename(columns={'SampleID': 'TEST Barcode'}, inplace=True)
+    id_lookup = df_map.set_index('TEST Barcode')['REF Barcode']
+    comp_table['REF Barcode'] = comp_table['TEST Barcode'].map(id_lookup)
+    comp_table = comp_table.set_index(['TEST Barcode', 'REF Barcode', 'Site'])
+    comp_table.to_csv(fr'{cur_dir}/comp_tables/{save_name}_test_values.csv', index=True)
+

@@ -83,8 +83,8 @@ class RegressionResult:
             intercept=data.get("intercept"),
             slope_ci=slope_ci,
             intercept_ci=intercept_ci,
-            r=data.get("r") or data.get("R2"),
-            r2=data.get("r2") or data.get("correlation_coefficient"),
+            r=data.get("r") or data.get("correlation_coefficient"),
+            r2=data.get("r2") or data.get("R2"),
             iterations=data.get("iterations"),
             ci_method=data.get("ci_method") or data.get("CI method", "Bootstrap"),
             reg_method=data.get("reg_method") or data.get("regression method", "Deming"),
@@ -977,19 +977,19 @@ class MethodComparator:
             if stats is None:
                 continue
             if math.isnan(stats.slope) or not np.isfinite(stats.slope):
-                slope_str = intercept_str = r2_str = "NA"
+                slope_str = intercept_str = r_str = "NA"
             else:
                 slope_str = f"{stats.slope:.2f}\n({stats.slope_ci[0]:.2f}-{stats.slope_ci[1]:.2f})"
                 intercept_str = f"{stats.intercept:.2f}\n({stats.intercept_ci[0]:.2f}-{stats.intercept_ci[1]:.2f})"
-                r2_str = f"{stats.r2:.2f}"
+                r_str = f"{stats.r:.2f}"
 
             row = self._base_result_row(rec)
             reg_results = {
                 "N": stats.n,
+                "Positives": rec.get("pos_count"),
                 "Slope": slope_str,
                 "Intercept": intercept_str,
-                "R^2": r2_str,
-                "Positives": rec.get("pos_count"),
+                "r": r_str,
             }
             row.update(reg_results)
             rows.append(row)

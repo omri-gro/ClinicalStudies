@@ -43,10 +43,10 @@ if __name__ == "__main__":
     investigators_map = {'Todd Williams': 'Rev1', 'Wei Xie': 'Rev2', 'Phil Raess': 'Arbitrator',
                          'TW': 'Rev1', 'WX': 'Rev2', 'PR': 'Arbitrator',
                          'AB': 'Rev1', 'AS': 'Rev2', 'DL': 'Rev3', 'OP': 'Arbitrator',
-                         'Adam Bagg': 'Rev1', 'Annapurna Saksena': 'Rev2', 'Dorottya Laczko': 'Rev3',
-                         'Olga Pozdnyakova': 'Arbitrator',
+                         'Adam Bagg': 'Rev1', 'Annapurna Saksena': 'Rev2', 'Dorottya Laczko': 'Rev3', 'Olga Pozdnyakova': 'Arbitrator',
                          'Elizabeth Morgan': 'Rev1', 'Habibe Kurt': 'Rev2', 'Robert Hasserjian': 'Rev3',
-                         'Sam Sadigh': 'Rev4', "Christopher Hergott": 'Arbitrator',
+                         'Sam Sadigh': 'Rev4', "Megan Fitzpatrick": 'Rev5', "Vignesh Shanmugam": 'Rev6',
+                         "Christopher Hergott-rev": 'Rev7', "Christopher Hergott": 'Arbitrator',
                          'Rev1': 'Rev1', 'Rev2': 'Rev2',
                          'Mean Investigator': 'Mean Investigator'}
     cur_dir = os.path.abspath(os.path.dirname(__file__))

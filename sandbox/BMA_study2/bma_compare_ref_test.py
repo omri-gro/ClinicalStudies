@@ -39,13 +39,13 @@ if __name__ == "__main__":
     arbitrators = ['Phil Raess', 'Olga Pozdnyakova', 'Christopher Hergott', 'OP', 'Arbitrator']
 
     compare_methods = True
-    raw_dss = True
+    raw_dss = False
     inter = False
-    inter_to_include_arbitrated = False
+    inter_to_include_arbitrated = True
 
     exprt_mtrx = True
     exprt_long = True
-    plot_reg = True
+    plot_reg = False
     keep_names = False  # use investigators' full names - creates very wide 'all investigators' comparison matrix if True
     min_inv_site = 2
 
@@ -61,7 +61,8 @@ if __name__ == "__main__":
                          'AB': 'Rev1', 'AS': 'Rev2', 'DL': 'Rev3', 'OP': 'Arbitrator',
                          'Adam Bagg': 'Rev1', 'Annapurna Saksena': 'Rev2', 'Dorottya Laczko': 'Rev3', 'Olga Pozdnyakova': 'Arbitrator',
                          'Elizabeth Morgan': 'Rev1', 'Habibe Kurt': 'Rev2', 'Robert Hasserjian': 'Rev3',
-                         'Sam Sadigh': 'Rev4', "Megan Fitzpatrick": 'Rev5', "Vignesh Shanmugam": 'Rev6', "Christopher Hergott": 'Arbitrator',
+                         'Sam Sadigh': 'Rev4', "Megan Fitzpatrick": 'Rev5', "Vignesh Shanmugam": 'Rev6',
+                         "Christopher Hergott-rev": 'Rev7', "Christopher Hergott": 'Arbitrator',
                          'Rev1': 'Rev1', 'Rev2': 'Rev2',
                          'Mean Investigator': 'Mean Investigator'}
     cur_dir = os.path.abspath(os.path.dirname(__file__))
@@ -116,6 +117,8 @@ if __name__ == "__main__":
     methd_comp_all_inv = MethodComparator(all_dfs_all_inv)
 
     all_dfs = removed_for_arbitration(all_dfs, df_arb, arbitrators)
+    # all_dfs = all_dfs[~(all_dfs['Investigator'].isin(arbitrators))]  # when not using arbitration at all
+
     all_dfs = add_mean_investigator(all_dfs, mthd='REF', min_inv=0)
     all_dfs = add_mean_investigator(all_dfs, mthd='TEST', min_inv=0)
     if raw_dss:
@@ -159,9 +162,10 @@ if __name__ == "__main__":
         long_df_to_exprt = all_dfs   # add here query if needed
         long_df_to_exprt.to_csv(fr'{cur_dir}/comp_tables/{save_name}_long.csv', index=False)
 
-
     ndc_vars_list = metadata.variable_groups['NDC'] + metadata.variable_groups['NDC lineage total']
     ndc_vars_list_to_print = ndc_vars_list + ['Total Nucleated']
+    if not rmv_unclass:
+        ndc_vars_list.remove('Unclassified')
     needed_rows = methd_comp.df[methd_comp.df['Variable'].isin(ndc_vars_list)]
     grade_vars_list = metadata.variable_groups['grade']
     ids_list = ['scan_id', 'case_id']
@@ -197,7 +201,7 @@ if __name__ == "__main__":
         methd_comp = methd_comp.filter_by_df(apls_df)
 
         # the multi-site analysis for erythroid stages does not cover HUP
-        erythroid_stages = ['Erythroblast', 'Basophilic normoblast', 'Polychromatophilic normoblast', 'Normoblast']
+        erythroid_stages = ['Erythroblast', 'Basophilic normoblast', 'Polychromatophilic normoblast', 'Normoblast', 'Myelocyte', 'Metamyelocyte']
         methd_comp = methd_comp.apply_to_df('query', "Variable not in @erythroid_stages or Site != 'HUP'", inplace=False)
 
 
