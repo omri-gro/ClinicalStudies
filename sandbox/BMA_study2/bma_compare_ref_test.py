@@ -41,11 +41,13 @@ if __name__ == "__main__":
     compare_methods = True
     raw_dss = False
     inter = False
-    inter_to_include_arbitrated = True
+    inter_to_include_arbitrated = True  # also means that reviews which were replaced by arbitration will not appear in comp_mtrx
 
-    exprt_mtrx = True
-    exprt_long = True
-    plot_reg = False
+    # comp_mk_rois = True
+
+    exprt_mtrx = False
+    exprt_long = False
+    plot_reg = True
     keep_names = False  # use investigators' full names - creates very wide 'all investigators' comparison matrix if True
     min_inv_site = 2
 
@@ -208,8 +210,8 @@ if __name__ == "__main__":
     # main method comparison regressions + biases
     if compare_methods:
         methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list)
-        if not only_merged:
-            methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list, site_filters=sites)
+        # if not only_merged:
+        #     methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list, site_filters=sites)
         methd_comp.calc_all_biases(metadata.crit_points)
         methd_comp.save_results(rf'results/{save_name}_bma_reg.csv')
         methd_comp.save_results(rf'results/{save_name}_bias.xlsx', result_type='bias')
@@ -242,3 +244,101 @@ if __name__ == "__main__":
         methd_comp.save_results(rf'results/{save_name}_raw_dss.csv')
         if plot_reg:
             methd_comp.plot_all_regressions(f'results/{save_name}_raw_dss.pdf')
+
+    # ---------------------------------------------------------
+    # Generate MS Word Appendix
+    # ---------------------------------------------------------
+    from appendix_generator import create_word_appendix
+
+    appendix_order = [
+        'Total Myeloid',
+        'Total Erythroid',
+        'Blast',
+        'Promyelocyte',
+        'MyeloMetamyelo',
+        'Myelocyte',
+        'Metamyelocyte',
+        'Neutrophil',
+        'Band neutrophil',
+        'Segmented neutrophil',
+        'Plasma cell',
+        'Lymphocyte',
+        'Erythroblast&BasophilicNormoblast',
+        'BasNorm&PolychromNorm',
+        'PolychromNorm&Normoblast',
+        'Erythroblast',
+        'Basophilic normoblast',
+        'Polychromatophilic normoblast',
+        'Normoblast',
+        'Monocyte',
+        'Eosinophil',
+        'Basophil',
+        'Mast cell'
+    ]
+
+    fig_titles = {
+        'Total Myeloid': 'Total Myeloid Lineage',
+        'Total Erythroid': 'Total Erythroid Lineage',
+        'Blast': 'Blast',
+        'Promyelocyte': 'Promyelocyte',
+        'MyeloMetamyelo': 'Intermediate Myeloid Precursors',
+        'Myelocyte': 'Myelocyte',
+        'Metamyelocyte': 'Metamyelocyte',
+        'Neutrophil': 'Total neutrophils',
+        'Band neutrophil': 'Band neutrophil',
+        'Segmented neutrophil': 'Segmented neutrophil',
+        'Plasma cell': 'Plasma cell',
+        'Lymphocyte': 'Lymphocyte',
+        'Erythroblast&BasophilicNormoblast': 'Early Erythroid Precursors',
+        'BasNorm&PolychromNorm': 'Intermediate Erythroid Precursors',
+        'PolychromNorm&Normoblast': 'Late Erythroid Precursors',
+        'Erythroblast': 'Erythroblast',
+        'Basophilic normoblast': 'Basophilic normoblast',
+        'Polychromatophilic normoblast': 'Polychromatophilic normoblast',
+        'Normoblast': 'Normoblast',
+        'Monocyte': 'Monocyte',
+        'Eosinophil': 'Eosinophil',
+        'Basophil': 'Basophil',
+        'Mast cell': 'Mast cell',
+        'Megakaryocytes': 'Megakaryocytes Count'
+    }
+
+    doc_title = {
+        'Total Myeloid': 'Total Myeloid Lineage',
+        'Total Erythroid': 'Total Erythroid Lineage',
+        'Blast': 'Blast',
+        'Promyelocyte': 'Promyelocyte',
+        'MyeloMetamyelo': 'Intermediate Myeloid Precursors (Myelocyte and Metamyelocyte)',
+        'Myelocyte': 'Myelocyte',
+        'Metamyelocyte': 'Metamyelocyte',
+        'Neutrophil': 'Total neutrophils (Band and Segmented neutrophils)',
+        'Band neutrophil': 'Band neutrophil',
+        'Segmented neutrophil': 'Segmented neutrophil',
+        'Plasma cell': 'Plasma cell',
+        'Lymphocyte': 'Lymphocyte',
+        'Erythroblast&BasophilicNormoblast': 'Early Erythroid Precursors (Erythroblast and Basophilic normoblast)',
+        'BasNorm&PolychromNorm': 'Intermediate Erythroid Precursors (Basophilic and Polychromatophilic normoblast)',
+        'PolychromNorm&Normoblast': 'Late Erythroid Precursors (Polychromatophilic normoblast and Normoblast)',
+        'Erythroblast': 'Erythroblast',
+        'Basophilic normoblast': 'Basophilic normoblast',
+        'Polychromatophilic normoblast': 'Polychromatophilic normoblast',
+        'Normoblast': 'Normoblast',
+        'Monocyte': 'Monocyte',
+        'Eosinophil': 'Eosinophil',
+        'Basophil': 'Basophil',
+        'Mast cell': 'Mast cell',
+        'Megakaryocytes': 'Megakaryocytes Count [MK / 10X FOV]'
+    }
+
+    # Define the path to your MK raw file
+    # Adjust this path based on your script's execution directory
+    mk_data_path = os.path.join(read_dir, 'mk_raw.csv')
+
+    create_word_appendix(
+        methd_comp=methd_comp,
+        mk_csv_path=mk_data_path,
+        output_filename=f'results/{save_name}_Appendix.docx',
+        ordered_variables=appendix_order,
+        fig_title_mapping=fig_titles,
+        doc_title_mapping=doc_title
+    )

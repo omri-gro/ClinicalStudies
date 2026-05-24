@@ -693,12 +693,12 @@ def compile_local_events_study(
 
 
 if __name__ == "__main__":
-    machine = "scopiobox3217"
+    machine = "scopiobox1271"
     BUCKET = "scopio_event_sync_hematology_prod"
     BASE_DIR = "events"
     CLASSES_FILE = "label_classes.yml"  # Path to your local classes mapping file
 
-    not_signed = False  # if True then search does not require sign-off and just takes latest chosen analysis areas
+    not_signed = True  # if True then search does not require sign-off and just takes latest chosen analysis areas
 
     bucket_name = BUCKET
     PREFIX = fr'{BASE_DIR}/{machine}'
@@ -725,7 +725,7 @@ if __name__ == "__main__":
     print("\nFinal Results DataFrame:")
     print(final_df.head())
 
-    final_df.to_csv(f"{machine}_raw_cbm.csv")
+    final_df.to_csv(f"{machine}_raw_cbm_b.csv")
 
 
 

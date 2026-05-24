@@ -6,7 +6,7 @@ import pandas as pd
 
 # Define the target directory
 # Note: Ensure you have write permissions to the root /events directory
-output_dir = Path(r"C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\BMA_study2\raw_dss_chosen_analysis_areas\sb1060_events")
+output_dir = Path(r"C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\BMA_study2\raw_dss_chosen_analysis_areas\scopiobox1271_events")
 
 
 def download_events(uuids, session):
@@ -18,7 +18,8 @@ def download_events(uuids, session):
         return
 
     for uuid in uuids:
-        url = f"https://127.182.253.74/analysis/scans/{uuid}/_events"
+        # url = f"https://127.83.194.14/analysis/scans/{uuid}/_events"
+        url = f"https://maintenance.scopiolabs.com:36198/analysis/scans/{uuid}/_events"
         output_path = output_dir / f"{uuid}.json"
 
         print(f"Fetching {uuid}...")
@@ -53,10 +54,10 @@ if __name__ == "__main__":
     # Suppress InsecureRequestWarning if using verify=False
     import urllib3
 
-    df = pd.read_csv('sb1060_case_mapping.csv')
+    df = pd.read_csv('sb1271_case_mapping.csv')
     uuid_list = df['scan'].tolist()
 
-    session = 'userUUID=39760423-6ec0-48be-b9ca-7fe2102784e5; sid=s%3AwaBsSvGD2o9rhsjrIk2HcRuYPEsFlVM-.odYXUfiH%2Bw8yFbU8rEtMYRn6rigiz1%2Bj9HfLalpmkx0; swtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IlNjb3Bpb1JEQHVzZXJzLm5vcmVwbHkuc2NvcGlvbGFicy5jb20iLCJjbGFpbXMiOnsicm9sZXMiOnsic2Nhbm5lciI6ImVkaXRvciIsImFuYWx5c2lzIjoiZWRpdG9yIn0sImNsaW5pYyI6IjVlMTEwMWY0LThjYzUtNDQ5NC05ZGE2LWVjNDMwMzFmY2QxMyJ9LCJpYXQiOjE3NzY5NTA2NDgsImV4cCI6MTc3Njk1MjQ0OH0.cixkM3xT9p9tNYtM75DHqOyxi89gno0A6Vs9fqQ4UL4'
+    session = 'userUUID=8225eecf-01db-46d9-b89e-3dfbee07ddc5; sid=s%3Au0FPkJ1tD7F4L6AXIbL2GI4nQLK_fEtA.qB6VIaxIw1H62fIdZHinwPgruirXiu01L8hIsBHobxI; swtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IlNjb3Bpb1JEQHVzZXJzLm5vcmVwbHkuc2NvcGlvbGFicy5jb20iLCJjbGFpbXMiOnsicm9sZXMiOnsic2Nhbm5lciI6ImVkaXRvciIsImFuYWx5c2lzIjoiZWRpdG9yIn0sImNsaW5pYyI6IjE0MzhkOTYxLWI2MjEtNGE1YS05ODZkLWU2MTBhMTI1NzdhOSJ9LCJpYXQiOjE3NzkwMjQzODIsImV4cCI6MTc3OTAyNjE4Mn0.mPGC_p5Ollin29Dc0qASH8ALgc-h4w0UzfNlM_gpbSE'
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

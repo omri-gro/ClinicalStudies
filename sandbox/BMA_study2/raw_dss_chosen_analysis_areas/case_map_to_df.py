@@ -44,6 +44,6 @@ def process_case_mapping(file_path):
 
 # Example usage:
 if __name__ == "__main__":
-    df = process_case_mapping('sb1060_case_mapping.json')
+    df = process_case_mapping('sb1060_case_mapping_b.json')
     print(df.head(10))
-    df.to_csv(f"sb1060_case_mapping.csv", index=False)
+    df.to_csv(f"sb1060_case_mapping_b.csv", index=False)

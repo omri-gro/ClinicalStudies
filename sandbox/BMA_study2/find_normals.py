@@ -39,7 +39,7 @@ def removed_for_arbitration(df_raw, df_arb, arbitrator):
 if __name__ == "__main__":
     suffix = ''
     save_name = f'BMA_normals_search'
-    meta_path = r'config_BMA.yaml'
+    meta_path = r'config_BMA_extended_RI.yaml'
     sites = ["OHSU", "HUP", "BWH"]
     arbitrators = ['Phil Raess', 'Olga Pozdnyakova', 'Christopher Hergott', 'OP', 'Arbitrator']
 

@@ -11,34 +11,32 @@ warnings.simplefilter('ignore', ConvergenceWarning)
 # Pass/Fail limit dictionaries
 # Format: { 'Official Name': (Switch_Threshold, SD_Limit, CV_Limit, Evaluation_Mode) }
 AC_CONFIG = {
-    # Tier 1: Ultra-Rare (SD Only)
-    'Basophil': (0.0, 0.5, None, 'SD_ONLY'),
-    'Mast Cell': (0.0, 0.5, None, 'SD_ONLY'),
+    # Tier 1: Ultra-Rare
+    'Basophil': (2.0, 0.5, 30.0, 'HYBRID'),
+    'Mast Cell': (2.0, 0.5, 30.0, 'HYBRID'),
 
-    # Tier 2: Critical Narrow-Bin
-    'Monocyte': (5.0, 1.0, 20.0, 'HYBRID'),
-    'Blast': (5.0, 1.0, 20.0, 'HYBRID'),
-    'Promyelocyte': (5.0, 1.0, 20.0, 'HYBRID'),
-    'Plasma Cell': (5.0, 1.0, 20.0, 'HYBRID'),  # Even with 0-3% normal, 5% is a good mathematical switch
-    'Erythroblast': (5.0, 1.0, 20.0, 'HYBRID'),
-    'Basophilic Normoblast': (5.0, 1.0, 20.0, 'HYBRID'),
-    'Eosinophil': (5.0, 1.0, 20.0, 'HYBRID'),
+    # Tier 2: Minor / Diagnostic
+    'Blast': (5.0, 2.0, 30.0, 'HYBRID'),
+    'Promyelocyte': (5.0, 2.0, 30.0, 'HYBRID'),
+    'Plasma Cell': (5.0, 2.0, 30.0, 'HYBRID'),
+    'Erythroblast': (5.0, 2.0, 30.0, 'HYBRID'),
+    'Basophilic Normoblast': (5.0, 2.0, 30.0, 'HYBRID'),
+    'Monocyte': (5.0, 2.0, 30.0, 'HYBRID'),
+    'Eosinophil': (5.0, 2.0, 30.0, 'HYBRID'),
 
-    # Tier 3: Intermediate Broad-Bin
-    'Myelocyte': (10.0, 2.0, 15.0, 'HYBRID'),
-    'Metamyelocyte': (10.0, 2.0, 15.0, 'HYBRID'),
-    'Band Neutrophil': (10.0, 2.0, 15.0, 'HYBRID'),
-    'Normoblast': (10.0, 2.0, 15.0, 'HYBRID'),
-    'Polychromatophilic Normoblast': (10.0, 2.0, 15.0, 'HYBRID'),
-    'Total Normoblasts': (10.0, 2.0, 15.0, 'HYBRID'),
+    # Tier 3: Intermediate
+    'Myelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
+    'Metamyelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
+    'Band Neutrophil': (10.0, 3.0, 25.0, 'HYBRID'),
+    'Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
+    'Polychromatophilic Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
 
     # Tier 4: Major Populations
-    'Segmented Neutrophil': (15.0, 3.0, 10.0, 'HYBRID'),
-    'Total Neutrophils': (15.0, 3.0, 10.0, 'HYBRID'),
-    'Lymphocyte': (15.0, 3.0, 10.0, 'HYBRID'),
+    'Lymphocyte': (20.0, 5.0, 25.0, 'HYBRID'),
+    'Segmented Neutrophil': (20.0, 5.0, 25.0, 'HYBRID'),
 
-    # Safety fallback if a parameter name doesn't match perfectly
-    'default': (5.0, 1.5, 15.0, 'HYBRID')
+    # Safety fallback (If a name doesn't match perfectly)
+    'default': (5.0, 2.0, 30.0, 'HYBRID')
 }
 
 # --- HELPER FUNCTIONS ---

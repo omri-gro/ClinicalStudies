@@ -15,7 +15,9 @@ def main():
     try:
         df_rep = pd.read_csv(FILE_REPEATABILITY)
         # Extract parameter columns (assuming they start after the 4 metadata columns)
-        param_cols = [c for c in df_rep.columns if c not in ['Sample', 'Day', 'Run', 'Scan']]
+        param_cols = [c for c in df_rep.columns if c not in ['Sample', 'Day', 'Run', 'Scan',
+                                                             'totalWBC', 'Unclassified', 'megakaryocyte', 'stripped', 'Particles',
+                                                             'Scan_UUID']]
         process_repeatability(df_rep, param_cols)
     except FileNotFoundError:
         print(f"File {FILE_REPEATABILITY} not found. Skipping single-site analysis.")
@@ -24,7 +26,9 @@ def main():
     try:
         df_repro = pd.read_csv(FILE_REPRODUCIBILITY)
         # Extract parameter columns
-        param_cols = [c for c in df_repro.columns if c not in ['Sample', 'Machine', 'Day', 'Scan']]
+        param_cols = [c for c in df_repro.columns if c not in ['Sample', 'Machine', 'Day', 'Scan',
+                                                             'totalWBC', 'Unclassified', 'megakaryocyte', 'stripped', 'Particles',
+                                                             'Scan_UUID']]
         process_reproducibility(df_repro, param_cols)
     except FileNotFoundError:
         print(f"File {FILE_REPRODUCIBILITY} not found. Skipping multisite analysis.")
