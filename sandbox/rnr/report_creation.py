@@ -5,7 +5,7 @@ from statsmodels.tools.sm_exceptions import ConvergenceWarning
 import os
 import matplotlib.pyplot as plt
 from docx import Document
-from docx.shared import Pt, Inches
+from docx.shared import Pt, Inches, RGBColor
 from docx.enum.section import WD_ORIENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -312,7 +312,6 @@ def build_variance_table(doc, data, study_type):
 
 def build_ci_table(doc, data, study_type):
     if not data: return
-    doc.add_heading(f'{study_type} - Degrees of Freedom & 95% Confidence Intervals', level=3)
 
     total_rows = len(data) + 2
     table = doc.add_table(rows=total_rows, cols=10)
@@ -393,6 +392,13 @@ def generate_docx(rep_data, repro_data):
     style = doc.styles['Normal']
     style.font.name = 'Arial'
     style.font.size = Pt(8)
+
+    for level in range(1, 4):
+        heading_style = doc.styles[f'Heading {level}']
+        heading_style.font.color.rgb = RGBColor(0, 0, 0)
+
+    caption_style = doc.styles['Caption']
+    caption_style.font.color.rgb = RGBColor(0, 0, 0)
 
     doc.add_heading('Results', level=1)
 
