@@ -1,8 +1,5 @@
 import pandas as pd
 import numpy as np
-import statsmodels.api as sm
-import scipy.stats as stats
-import statsmodels.formula.api as smf
 import warnings
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 import os
@@ -13,144 +10,16 @@ from docx.enum.section import WD_ORIENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from processing import AC_CONFIG
 
 warnings.simplefilter('ignore', ConvergenceWarning)
 
 # --- CONFIGURATION ---
-FILE_REPEATABILITY = r"raw/bma_repeatability.csv"
-FILE_REPRODUCIBILITY = r"raw/bma_reproducibility.csv"
 OUTPUT_DIR = "results"
 PLOT_DIR = os.path.join(OUTPUT_DIR, "plots")
 os.makedirs(PLOT_DIR, exist_ok=True)
 
-# (Threshold, SD_Limit, CV_Limit, Evaluation_Mode)
-AC_CONFIG = {
-    # Tier 1: Ultra-Rare
-    'Basophil': (2.0, 0.5, 30.0, 'HYBRID'),
-    'Mast Cell': (2.0, 0.5, 30.0, 'HYBRID'),
-    # Tier 2: Minor / Diagnostic
-    'Blast': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Promyelocyte': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Plasma Cell': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Erythroblast': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Basophilic Normoblast': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Monocyte': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Eosinophil': (5.0, 2.0, 30.0, 'HYBRID'),
-    # Tier 3: Intermediate
-    'Myelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Metamyelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Band Neutrophil': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Polychromatophilic Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
-    # Tier 4: Major Populations
-    'Lymphocyte': (20.0, 5.0, 25.0, 'HYBRID'),
-    'Segmented Neutrophil': (20.0, 5.0, 25.0, 'HYBRID'),
-    # Safety fallback (If a name doesn't match perfectly)
-    'default': (5.0, 2.0, 30.0, 'HYBRID')
-}
-
 _caption_counters = {'Table': 0, 'Figure': 0}
-
-def evaluate_status(mean_val, sd, cv, param):
-    if param not in AC_CONFIG:
-        return 'Pass'
-    threshold, sd_limit, cv_limit, mode = AC_CONFIG[param]
-    if mode == 'HYBRID':
-        if mean_val <= threshold:
-            return 'Pass' if sd <= sd_limit else 'Fail'
-        else:
-            return 'Pass' if cv <= cv_limit else 'Fail'
-    return 'Pass'
-
-def calculate_ci(sd, mean, df):
-    if df <= 0 or sd == 0: return "-", "-"
-    alpha = 0.05
-    lower_factor = np.sqrt(df / stats.chi2.ppf(1 - alpha / 2, df))
-    upper_factor = np.sqrt(df / stats.chi2.ppf(alpha / 2, df))
-    sd_lower, sd_upper = sd * lower_factor, sd * upper_factor
-    cv_lower, cv_upper = (sd_lower / mean) * 100, (sd_upper / mean) * 100
-    return f"{sd_lower:.2f}-{sd_upper:.2f}", f"{cv_lower:.2f}%-{cv_upper:.2f}%"
-
-
-def process_repeatability():
-    if not os.path.exists(FILE_REPEATABILITY):
-        return []
-    df_rep = pd.read_csv(FILE_REPEATABILITY)
-    param_cols = [c for c in df_rep.columns if c not in ['Sample', 'Day', 'Run', 'Scan']]
-
-    results = []
-    for param in param_cols:
-        for sample, group in df_rep.groupby('Sample'):
-            N = len(group[param].dropna())
-            mean_val = group[param].mean()
-            if mean_val == 0 or len(group) < 5 or group[param].std() == 0:
-                results.append({'Parameter': param, 'Sample': sample, 'N': N, 'Mean': 0.0, 'constant': True})
-                continue
-
-            v_scan = group.groupby(['Day', 'Run'])[param].var().mean()
-            v_run = max(0, group.groupby(['Day', 'Run'])[param].mean().var() - v_scan / 2)
-            v_day = max(0, group.groupby('Day')[param].mean().var() - (v_run / 2 + v_scan / 4))
-            v_wl = v_scan + v_run + v_day
-
-            sd_scan, sd_run, sd_day, sd_wl = np.sqrt(v_scan), np.sqrt(v_run), np.sqrt(v_day), np.sqrt(v_wl)
-            cv_scan, cv_run, cv_day, cv_wl = (sd_scan / mean_val) * 100, (sd_run / mean_val) * 100, (
-                        sd_day / mean_val) * 100, (sd_wl / mean_val) * 100
-            df_rep_val = len(group) - len(group[['Day', 'Run']].drop_duplicates())
-            df_wl_val = len(group) - 1
-            ci_sd_rep, ci_cv_rep = calculate_ci(sd_scan, mean_val, df_rep_val)
-            ci_sd_wl, ci_cv_wl = calculate_ci(sd_wl, mean_val, df_wl_val)
-            status = evaluate_status(mean_val, sd_wl, cv_wl, param)
-
-            results.append({
-                'Parameter': param, 'Sample': sample, 'N': N, 'Mean': mean_val, 'constant': False,
-                'Rep_SD': sd_scan, 'Rep_CV': cv_scan, 'BR_SD': sd_run, 'BR_CV': cv_run,
-                'BD_SD': sd_day, 'BD_CV': cv_day, 'Total_SD': sd_wl, 'Total_CV': cv_wl,
-                'Status': status, 'DF_Rep': df_rep_val, 'Rep_SD_CI': ci_sd_rep, 'Rep_CV_CI': ci_cv_rep,
-                'DF_Total': df_wl_val, 'Total_SD_CI': ci_sd_wl, 'Total_CV_CI': ci_cv_wl
-            })
-    pd.DataFrame(results).to_csv(os.path.join(OUTPUT_DIR, "Repeatability_Results.csv"), index=False)
-    return results
-
-
-def process_reproducibility():
-    if not os.path.exists(FILE_REPRODUCIBILITY):
-        return []
-    df_repro = pd.read_csv(FILE_REPRODUCIBILITY)
-    param_cols = [c for c in df_repro.columns if c not in ['Sample', 'Machine', 'Day', 'Scan']]
-
-    results = []
-    for param in param_cols:
-        for sample, group in df_repro.groupby('Sample'):
-            N = len(group[param].dropna())
-            mean_val = group[param].mean()
-            if mean_val == 0 or len(group) < 5 or group[param].std() == 0:
-                results.append({'Parameter': param, 'Sample': sample, 'N': N, 'Mean': 0.0, 'constant': True})
-                continue
-
-            v_scan = group.groupby(['Machine', 'Day'])[param].var().mean()
-            v_day = max(0, group.groupby(['Machine', 'Day'])[param].mean().var() - v_scan / 4)
-            v_machine = max(0, group.groupby('Machine')[param].mean().var() - (v_day / 5 + v_scan / 20))
-            v_repro = v_scan + v_day + v_machine
-
-            sd_scan, sd_day, sd_machine, sd_repro = np.sqrt(v_scan), np.sqrt(v_day), np.sqrt(v_machine), np.sqrt(
-                v_repro)
-            cv_scan, cv_day, cv_machine, cv_repro = (sd_scan / mean_val) * 100, (sd_day / mean_val) * 100, (
-                        sd_machine / mean_val) * 100, (sd_repro / mean_val) * 100
-            df_rep_val = len(group) - len(group[['Machine', 'Day']].drop_duplicates())
-            df_repro_val = len(group) - 1
-            ci_sd_rep, ci_cv_rep = calculate_ci(sd_scan, mean_val, df_rep_val)
-            ci_sd_repro, ci_cv_repro = calculate_ci(sd_repro, mean_val, df_repro_val)
-            status = evaluate_status(mean_val, sd_repro, cv_repro, param)
-
-            results.append({
-                'Parameter': param, 'Sample': sample, 'N': N, 'Mean': mean_val, 'constant': False,
-                'Rep_SD': sd_scan, 'Rep_CV': cv_scan, 'BD_SD': sd_day, 'BD_CV': cv_day,
-                'BS_SD': sd_machine, 'BS_CV': cv_machine, 'Total_SD': sd_repro, 'Total_CV': cv_repro,
-                'Status': status, 'DF_Rep': df_rep_val, 'Rep_SD_CI': ci_sd_rep, 'Rep_CV_CI': ci_cv_rep,
-                'DF_Total': df_repro_val, 'Total_SD_CI': ci_sd_repro, 'Total_CV_CI': ci_cv_repro
-            })
-    pd.DataFrame(results).to_csv(os.path.join(OUTPUT_DIR, "Reproducibility_Results.csv"), index=False)
-    return results
 
 def plot_precision_profiles(data, study_type="Reproducibility"):
     df = pd.DataFrame(data)
@@ -235,8 +104,8 @@ def set_landscape(doc):
     section.page_width, section.page_height = section.page_height, section.page_width
 
     # Decrease margins to give tables more horizontal space
-    section.left_margin = Inches(0.4)
-    section.right_margin = Inches(0.4)
+    section.left_margin = Inches(0.8)
+    section.right_margin = Inches(0.8)
 
     return section
 
@@ -279,22 +148,17 @@ def add_native_caption(doc, text, prefix="Table"):
 
 
 def apply_strict_widths(table, widths_in_inches):
-    """Instantly forces MS Word to respect strict column widths, safely handling merged cells."""
+    """Instantly forces MS Word to respect strict column widths and unlocks manual resizing."""
 
-    # Calculate the total table width in twips
     total_width_twips = sum(int(w * 1440) for w in widths_in_inches)
-
-    # 1. Force strict fixed layout so Word stops auto-stretching
     table.autofit = False
-    tblPr = table._tbl.tblPr
 
-    # FIX: Manually find or build the master table width element
+    # 1. Set Master Table Width
+    tblPr = table._tbl.tblPr
     tblW = tblPr.find(qn('w:tblW'))
     if tblW is None:
         tblW = OxmlElement('w:tblW')
         tblPr.append(tblW)
-
-    # Safely set the raw XML attributes for fixed width ('dxa') and the exact twips value
     tblW.set(qn('w:type'), 'dxa')
     tblW.set(qn('w:w'), str(total_width_twips))
 
@@ -304,39 +168,51 @@ def apply_strict_widths(table, widths_in_inches):
         tblPr.append(tblLayout)
     tblLayout.set(qn('w:type'), 'fixed')
 
-    # 2. Set the background grid columns
+    # 2. THE FIX: Completely clear the corrupted grid and rebuild it flawlessly
     tblGrid = table._tbl.tblGrid
-    for i, gridCol in enumerate(tblGrid.gridCol_lst):
-        if i < len(widths_in_inches):
-            gridCol.w = int(widths_in_inches[i] * 1440)
+    tblGrid.clear() # Wipe all remaining/corrupted background columns
 
-    # 3. Apply exact widths to EVERY cell, calculating sums for merged cells
-    for tr in table._tbl.tr_lst:
-        col_idx = 0
-        for tc in tr.tc_lst:
-            # Check if this cell spans multiple columns (horizontal merge)
-            tcPr = tc.get_or_add_tcPr()
-            gridSpan = tcPr.find(qn('w:gridSpan'))
-            span = int(gridSpan.get(qn('w:val'))) if gridSpan is not None else 1
+    for w in widths_in_inches:
+        gridCol = OxmlElement('w:gridCol')
+        gridCol.set(qn('w:w'), str(int(w * 1440)))
+        tblGrid.append(gridCol)
 
-            # Sum the designated widths for all columns this cell spans
-            width_twips = sum(
-                int(widths_in_inches[col_idx + i] * 1440)
-                for i in range(span)
-                if (col_idx + i) < len(widths_in_inches)
-            )
+    # 3. Apply exact widths to the individual cells
+    for row_idx, tr in enumerate(table._tbl.tr_lst):
+        if row_idx < 2:
+            # First 2 rows: handle the complex header merges
+            row_cells = table.rows[row_idx].cells
+            processed_cells = set()
+            for col_idx, cell in enumerate(row_cells):
+                if cell._tc in processed_cells: continue
+                processed_cells.add(cell._tc)
 
-            # Apply the calculated width directly to the cell
-            tcW = tcPr.get_or_add_tcW()
-            tcW.w = width_twips
-            tcW.type = 'dxa'
+                span = sum(1 for c in row_cells if c._tc == cell._tc)
+                width_twips = sum(int(widths_in_inches[col_idx + i] * 1440) for i in range(span) if (col_idx + i) < len(widths_in_inches))
 
-            # Advance the column index by the number of columns spanned
-            col_idx += span
+                tcW = cell._tc.get_or_add_tcPr().get_or_add_tcW()
+                tcW.w = width_twips
+                tcW.type = 'dxa'
+        else:
+            # Data rows: O(1) pure XML injection to maintain blazing fast speed
+            col_idx = 0
+            for tc in tr.tc_lst:
+                tcPr = tc.get_or_add_tcPr()
+                gridSpan = tcPr.find(qn('w:gridSpan'))
+                span = int(gridSpan.get(qn('w:val'))) if gridSpan is not None else 1
+
+                width_twips = sum(int(widths_in_inches[col_idx + i] * 1440) for i in range(span) if (col_idx + i) < len(widths_in_inches))
+
+                tcW = tcPr.get_or_add_tcW()
+                tcW.w = width_twips
+                tcW.type = 'dxa'
+
+                col_idx += span
 
 def build_variance_table(doc, data, study_type):
     if not data: return
-    table = doc.add_table(rows=2, cols=13)
+    total_rows = len(data) + 2
+    table = doc.add_table(rows=total_rows, cols=13)
     table.style = 'Table Grid'
     table.autofit = False
 
@@ -375,40 +251,71 @@ def build_variance_table(doc, data, study_type):
         h2[i].text = 'SD'
         h2[i + 1].text = '%CV'
 
-    for row in data:
-        cells = table.add_row().cells
-        cells[0].text, cells[1].text, cells[2].text, cells[3].text = row['Parameter'], str(row['Sample']), str(row['N']), f"{row['Mean']:.2f}"
+    # Dynamically fetch the _Cell constructor to avoid importing internal classes
+    CellClass = type(table.cell(0, 0))
+    table_rows = table.rows
+
+    for r_idx, row in enumerate(data):
+        tr = table_rows[r_idx + 2]._tr  # Get raw XML row
+        tcs = tr.tc_lst  # Get raw XML cells list
+
+        # Wrap XML directly without triggering the grid evaluation
+        CellClass(tcs[0], table).text = row['Parameter']
+        CellClass(tcs[1], table).text = str(row['Sample'])
+
+        c_n = CellClass(tcs[2], table)
+        c_n.text = str(row['N'])
+        c_n.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+        c_mean = CellClass(tcs[3], table)
+        c_mean.text = f"{row['Mean']:.2f}"
+        c_mean.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
         if row.get('constant'):
-            # Merge first, then set text and alignment
-            merged_cell = cells[4].merge(cells[11])
-            merged_cell.text = "Dependent variable is constant."
-            merged_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
-            cells[12].text = "N/A"
+            # Instant Native XML merge (Bypasses .merge() layout recalculation)
+            c_merged = CellClass(tcs[4], table)
+            c_merged.text = "Dependent variable is constant."
+            c_merged.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+            tcPr = tcs[4].get_or_add_tcPr()
+            gridSpan = OxmlElement('w:gridSpan')
+            gridSpan.set(qn('w:val'), "8")
+            tcPr.append(gridSpan)
+
+            # Remove the absorbed cells from the XML
+            for tc in tcs[5:12]:
+                tr.remove(tc)
+
+            CellClass(tcs[12], table).text = "N/A"
         else:
-            cells[4].text = f"{row['Rep_SD']:.2f}"
-            cells[5].text = f"{row['Rep_CV']:.1f}%"
-            cells[6].text = f"{row.get('BR_SD', row.get('BD_SD')):.2f}"
-            cells[7].text = f"{row.get('BR_CV', row.get('BD_CV')):.1f}%"
-            cells[8].text = f"{row.get('BD_SD', row.get('BS_SD')):.2f}"
-            cells[9].text = f"{row.get('BD_CV', row.get('BS_CV')):.1f}%"
-            cells[10].text = f"{row['Total_SD']:.2f}"
-            cells[11].text = f"{row['Total_CV']:.1f}%"
-            cells[12].text = row['Status']
+            vals = [
+                f"{row['Rep_SD']:.2f}",
+                f"{row['Rep_CV']:.1f}%",
+                f"{row.get('BR_SD', row.get('BD_SD')):.2f}",
+                f"{row.get('BR_CV', row.get('BD_CV')):.1f}%",
+                f"{row.get('BD_SD', row.get('BS_SD')):.2f}",
+                f"{row.get('BD_CV', row.get('BS_CV')):.1f}%",
+                f"{row['Total_SD']:.2f}",
+                f"{row['Total_CV']:.1f}%",
+                row['Status']
+            ]
+            for i, val in enumerate(vals):
+                c = CellClass(tcs[i + 4], table)
+                c.text = val
+                if i < 8:  # Right-align all numeric columns
+                    c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-    # Right-align all columns except Parameter (0), Sample (1), and Status (12)
-    for i in range(2, 12):
-        if i < len(cells) and len(cells[i].paragraphs) > 0:
-            cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
-
-    # Apply strict widths to all 13 columns (Total: ~7.75 inches)
-    widths = [1.3, 0.6, 0.35, 0.5, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55, 0.6]
+    # Apply strict widths to all columns
+    widths = [2.0, 0.6, 0.35, 0.5, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55, 0.6]
     apply_strict_widths(table, widths)
 
 
 def build_ci_table(doc, data, study_type):
     if not data: return
     doc.add_heading(f'{study_type} - Degrees of Freedom & 95% Confidence Intervals', level=3)
-    table = doc.add_table(rows=2, cols=10)
+
+    total_rows = len(data) + 2
+    table = doc.add_table(rows=total_rows, cols=10)
     table.style = 'Table Grid'
     table.autofit = False
 
@@ -438,33 +345,47 @@ def build_ci_table(doc, data, study_type):
     h2[8].text = 'SD CI'
     h2[9].text = '%CV CI'
 
-    for row in data:
-        cells = table.add_row().cells
-        cells[0].text, cells[1].text, cells[2].text, cells[3].text = row['Parameter'], str(row['Sample']), str(
-            row['N']), f"{row['Mean']:.2f}"
+    CellClass = type(table.cell(0, 0))
+    table_rows = table.rows
+
+    for r_idx, row in enumerate(data):
+        tr = table_rows[r_idx + 2]._tr
+        tcs = tr.tc_lst
+
+        CellClass(tcs[0], table).text = row['Parameter']
+        CellClass(tcs[1], table).text = str(row['Sample'])
+
+        for i, key in enumerate(['N', 'Mean']):
+            c = CellClass(tcs[i + 2], table)
+            c.text = str(row[key]) if key == 'N' else f"{row[key]:.2f}"
+            c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
         if row.get('constant'):
-            cells[4].text = "-"
-            cells[5].text = "-"
-            cells[6].text = "-"
-            cells[7].text = "-"
-            cells[8].text = "-"
-            cells[9].text = "-"
+            c_merged = CellClass(tcs[4], table)
+            c_merged.text = "Dependent variable is constant."
+            c_merged.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+            tcPr = tcs[4].get_or_add_tcPr()
+            gridSpan = OxmlElement('w:gridSpan')
+            gridSpan.set(qn('w:val'), "6")  # Span the remaining 6 columns (DFs and CIs)
+            tcPr.append(gridSpan)
+
+            # Remove the absorbed cells (indices 5 through 9) from the XML
+            for tc in tcs[5:10]:
+                tr.remove(tc)
         else:
-            cells[4].text = str(row['DF_Rep'])
-            cells[5].text = row['Rep_SD_CI']
-            cells[6].text = row['Rep_CV_CI']
-            cells[7].text = str(row['DF_Total'])
-            cells[8].text = row['Total_SD_CI']
-            cells[9].text = row['Total_CV_CI']
+            vals = [
+                str(row['DF_Rep']), row['Rep_SD_CI'], row['Rep_CV_CI'],
+                str(row['DF_Total']), row['Total_SD_CI'], row['Total_CV_CI']
+            ]
+            for i, val in enumerate(vals):
+                c = CellClass(tcs[i + 4], table)
+                c.text = val
+                c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-        # Right-align all columns except Parameter (0) and Sample (1)
-        for i in range(2, len(cells)):
-            if len(cells[i].paragraphs) > 0:
-                cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
-
-    # Apply strict widths to all 10 columns (Total: ~8.55 inches)
+    # Apply strict widths to all columns
     # Param, Sample, N, Mean, DF, CI SD, CI CV, DF, CI SD, CI CV
-    widths = [1.3, 0.6, 0.35, 0.5, 0.4, 1.25, 1.25, 0.4, 1.25, 1.25]
+    widths = [2.0, 0.6, 0.35, 0.5, 0.4, 1.25, 1.25, 0.6, 1.25, 1.25]
     apply_strict_widths(table, widths)
 
 def generate_docx(rep_data, repro_data):
@@ -484,6 +405,7 @@ def generate_docx(rep_data, repro_data):
         build_variance_table(doc, rep_data, 'Repeatability')
         doc.add_paragraph("")  # Spacing
 
+        doc.add_page_break()
         add_native_caption(doc, "Repeatability Degrees of Freedom & 95% Confidence Intervals", "Table")
         build_ci_table(doc, rep_data, 'Repeatability')
         doc.add_page_break()
@@ -494,6 +416,7 @@ def generate_docx(rep_data, repro_data):
         build_variance_table(doc, repro_data, 'Reproducibility')
         doc.add_paragraph("")  # Spacing
 
+        doc.add_page_break()
         add_native_caption(doc, "Reproducibility Degrees of Freedom & 95% Confidence Intervals", "Table")
         build_ci_table(doc, repro_data, 'Reproducibility')
         doc.add_page_break()
@@ -523,15 +446,3 @@ def generate_docx(rep_data, repro_data):
 
     doc.save(os.path.join(OUTPUT_DIR, "RnR_Consolidated_Report.docx"))
 
-
-if __name__ == "__main__":
-    print("Processing Repeatability...")
-    rep_data = process_repeatability()
-
-    print("Processing Reproducibility...")
-    repro_data = process_reproducibility()
-
-    print("Generating Word Document with Plots & Consolidated Tables...")
-    if rep_data or repro_data:
-        generate_docx(rep_data, repro_data)
-        print(f"Done! Check the '{OUTPUT_DIR}' folder for results.")

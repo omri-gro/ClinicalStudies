@@ -1,37 +1,66 @@
 import pandas as pd
-import numpy as np
-import warnings
-from statsmodels.tools.sm_exceptions import ConvergenceWarning
-from processing import process_repeatability, process_reproducibility
+import os
 
-warnings.simplefilter('ignore', ConvergenceWarning)
+# Math Engine
+from processing import process_repeatability, process_reproducibility
+# Printer Engine
+from report_creation import generate_docx
 
 # --- CONFIGURATION ---
 FILE_REPEATABILITY = r"raw/bma_repeatability.csv"
 FILE_REPRODUCIBILITY = r"raw/bma_reproducibility.csv"
 
-def main():
-    # 1. Process Repeatability CSV (if exists)
-    try:
-        df_rep = pd.read_csv(FILE_REPEATABILITY)
-        # Extract parameter columns (assuming they start after the 4 metadata columns)
-        param_cols = [c for c in df_rep.columns if c not in ['Sample', 'Day', 'Run', 'Scan',
-                                                             'totalWBC', 'Unclassified', 'megakaryocyte', 'stripped', 'Particles',
-                                                             'Scan_UUID']]
-        process_repeatability(df_rep, param_cols)
-    except FileNotFoundError:
-        print(f"File {FILE_REPEATABILITY} not found. Skipping single-site analysis.")
 
-    # 2. Process Reproducibility CSV (if exists)
-    try:
+def main():
+    print("Starting Precision Analysis...")
+    rep_results = []
+    repro_results = []
+
+    # ---------------------------------------------------------
+    # 1. PROCESS REPEATABILITY (Single-Site)
+    # ---------------------------------------------------------
+    if os.path.exists(FILE_REPEATABILITY):
+        print(f"Loading {FILE_REPEATABILITY}...")
+        df_rep = pd.read_csv(FILE_REPEATABILITY)
+
+        # Identify parameters by excluding known metadata columns
+        exclude_cols = ['Sample', 'Day', 'Run', 'Scan', 'totalWBC',
+                        'Unclassified', 'megakaryocyte', 'stripped',
+                        'Particles', 'Scan_UUID']
+        rep_params = [c for c in df_rep.columns if c not in exclude_cols]
+
+        print("Calculating Repeatability variance components...")
+        rep_results = process_repeatability(df_rep, rep_params)
+    else:
+        print(f"Skipping Repeatability: {FILE_REPEATABILITY} not found.")
+
+    # ---------------------------------------------------------
+    # 2. PROCESS REPRODUCIBILITY (Multi-Site)
+    # ---------------------------------------------------------
+    if os.path.exists(FILE_REPRODUCIBILITY):
+        print(f"\nLoading {FILE_REPRODUCIBILITY}...")
         df_repro = pd.read_csv(FILE_REPRODUCIBILITY)
-        # Extract parameter columns
-        param_cols = [c for c in df_repro.columns if c not in ['Sample', 'Machine', 'Day', 'Scan',
-                                                             'totalWBC', 'Unclassified', 'megakaryocyte', 'stripped', 'Particles',
-                                                             'Scan_UUID']]
-        process_reproducibility(df_repro, param_cols)
-    except FileNotFoundError:
-        print(f"File {FILE_REPRODUCIBILITY} not found. Skipping multisite analysis.")
+
+        # Identify parameters (Note 'Machine' instead of 'Run')
+        exclude_cols = ['Sample', 'Machine', 'Day', 'Scan', 'totalWBC',
+                        'Unclassified', 'megakaryocyte', 'stripped',
+                        'Particles', 'Scan_UUID']
+        repro_params = [c for c in df_repro.columns if c not in exclude_cols]
+
+        print("Calculating Reproducibility variance components...")
+        repro_results = process_reproducibility(df_repro, repro_params)
+    else:
+        print(f"Skipping Reproducibility: {FILE_REPRODUCIBILITY} not found.")
+
+    # ---------------------------------------------------------
+    # 3. GENERATE REPORT
+    # ---------------------------------------------------------
+    if rep_results or repro_results:
+        print("\nGenerating Consolidated Word Document...")
+        generate_docx(rep_results, repro_results)
+        print("Done! Analysis complete.")
+    else:
+        print("\nNo data was processed. Exiting.")
 
 
 if __name__ == "__main__":

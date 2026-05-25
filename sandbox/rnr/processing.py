@@ -1,6 +1,10 @@
+"""
+For work with report_creation (functions returns results as list instead of just creating csv)
+"""
+
 import pandas as pd
 import numpy as np
-import statsmodels.api as sm
+import os
 import scipy.stats as stats
 import statsmodels.formula.api as smf
 import warnings
@@ -8,13 +12,13 @@ from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
 warnings.simplefilter('ignore', ConvergenceWarning)
 
+
 # Pass/Fail limit dictionaries
 # Format: { 'Official Name': (Switch_Threshold, SD_Limit, CV_Limit, Evaluation_Mode) }
 AC_CONFIG = {
     # Tier 1: Ultra-Rare
     'Basophil': (2.0, 0.5, 30.0, 'HYBRID'),
     'Mast Cell': (2.0, 0.5, 30.0, 'HYBRID'),
-
     # Tier 2: Minor / Diagnostic
     'Blast': (5.0, 2.0, 30.0, 'HYBRID'),
     'Promyelocyte': (5.0, 2.0, 30.0, 'HYBRID'),
@@ -23,18 +27,15 @@ AC_CONFIG = {
     'Basophilic Normoblast': (5.0, 2.0, 30.0, 'HYBRID'),
     'Monocyte': (5.0, 2.0, 30.0, 'HYBRID'),
     'Eosinophil': (5.0, 2.0, 30.0, 'HYBRID'),
-
     # Tier 3: Intermediate
     'Myelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
     'Metamyelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
     'Band Neutrophil': (10.0, 3.0, 25.0, 'HYBRID'),
     'Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
     'Polychromatophilic Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
-
     # Tier 4: Major Populations
     'Lymphocyte': (20.0, 5.0, 25.0, 'HYBRID'),
     'Segmented Neutrophil': (20.0, 5.0, 25.0, 'HYBRID'),
-
     # Safety fallback (If a name doesn't match perfectly)
     'default': (5.0, 2.0, 30.0, 'HYBRID')
 }
@@ -96,8 +97,8 @@ def calculate_ci(sd_val, mean_val, df, conf_level=0.95):
     cv_upper = (sd_upper / mean_val) * 100 if mean_val != 0 else 0
 
     # Format as string for the output table
-    sd_ci_str = f"[{sd_lower:.4f}, {sd_upper:.4f}]"
-    cv_ci_str = f"[{cv_lower:.2f}%, {cv_upper:.2f}%]"
+    sd_ci_str = f"{sd_lower:.2f} - {sd_upper:.2f}"
+    cv_ci_str = f"{cv_lower:.2f}% - {cv_upper:.2f}%"
 
     return sd_ci_str, cv_ci_str
 
@@ -178,125 +179,87 @@ def export_results(results_list, filename):
 # --- MAIN PROCESSING PIPELINES ---
 
 def process_repeatability(df, parameters):
-    """
-    Processes Single-Site data (Expected: Sample, Day, Run, Scan).
-    Matches CLSI EP05-A3 Section 3.8.1
-    """
-    print("Processing Repeatability (Single-Site) Study...")
+    """Expects a DataFrame and a list of column names to process."""
 
     # Create string columns for accurate categorical modeling
     df['Day_str'] = df['Day'].astype(str)
     df['Day_Run_str'] = df['Day'].astype(str) + "_" + df['Run'].astype(str)
 
     results = []
-
     for param in parameters:
-        for sample, sample_data in df.groupby('Sample'):
-            if sample_data[param].mean() == 0 or len(sample_data) < 5:
+        for sample, group in df.groupby('Sample'):
+            N = len(group[param].dropna())
+            mean_val = group[param].mean()
+
+            if mean_val == 0 or len(group) < 5 or group[param].std() == 0:
+                results.append({'Parameter': param, 'Sample': sample, 'N': N, 'Mean': 0.0, 'constant': True})
                 continue
 
-            mean_val = sample_data[param].mean()
+            # --- Use the LMM Engine from processing.py ---
+            v_day, v_run, v_scan = fit_mixed_model(group, param, "Day_str", "Day_Run_str")
+            v_wl = v_scan + v_run + v_day
 
-            # Use the shared statistical engine
-            v_day, v_run, v_scan = fit_mixed_model(sample_data, param, "Day_str", "Day_Run_str")
-            v_wl = v_scan + v_run + v_day  # Total Within-Lab
-
-            # Standard Deviations
             sd_scan, sd_run, sd_day, sd_wl = np.sqrt([v_scan, v_run, v_day, v_wl])
-
-            # Calculate Degrees of Freedom
-            df_rep, df_wl = calculate_dfs(sample_data, "Day_str", "Day_Run_str", v_day, v_run, v_scan)
-
-            # Calculate Confidence Intervals
-            ci_sd_rep, ci_cv_rep = calculate_ci(sd_scan, mean_val, df_rep)
-            ci_sd_wl, ci_cv_wl = calculate_ci(sd_wl, mean_val, df_wl)
-
-            # %CVs
             cv_scan = (sd_scan / mean_val) * 100
             cv_run = (sd_run / mean_val) * 100
             cv_day = (sd_day / mean_val) * 100
             cv_wl = (sd_wl / mean_val) * 100
 
-            # Evaluate pass/fail status
-            status, metric_used = evaluate_status(mean_val, sd_wl, cv_wl, param)
+            # --- Satterthwaite DFs and CIs ---
+            df_rep_val, df_wl_val = calculate_dfs(group, "Day_str", "Day_Run_str", v_day, v_run, v_scan)
+            ci_sd_rep, ci_cv_rep = calculate_ci(sd_scan, mean_val, df_rep_val)
+            ci_sd_wl, ci_cv_wl = calculate_ci(sd_wl, mean_val, df_wl_val)
+
+            status, _ = evaluate_status(mean_val, sd_wl, cv_wl, param)
 
             results.append({
-                'Parameter': param,
-                'Sample': sample,
-                'Mean': round(mean_val, 2),
-                'Repeatability SD': round(sd_scan, 2),
-                'Repeatability %CV': round(cv_scan, 2),
-                'Between-Run SD': round(sd_run, 2),
-                'Between-Run %CV': round(cv_run, 2),
-                'Between-Day SD': round(sd_day, 2),
-                'Between-Day %CV': round(cv_day, 2),
-                'Within-Laboratory SD': round(sd_wl, 2),
-                'Within-Laboratory %CV': round(cv_wl, 2),
-                'Status': status,
-                'Metric Evaluated': metric_used
+                'Parameter': param, 'Sample': sample, 'N': N, 'Mean': mean_val, 'constant': False,
+                'Rep_SD': sd_scan, 'Rep_CV': cv_scan, 'BR_SD': sd_run, 'BR_CV': cv_run,
+                'BD_SD': sd_day, 'BD_CV': cv_day, 'Total_SD': sd_wl, 'Total_CV': cv_wl,
+                'Status': status, 'DF_Rep': round(df_rep_val, 2), 'Rep_SD_CI': ci_sd_rep, 'Rep_CV_CI': ci_cv_rep,
+                'DF_Total': round(df_wl_val, 2), 'Total_SD_CI': ci_sd_wl, 'Total_CV_CI': ci_cv_wl
             })
-
-    export_results(results, f"results/Repeatability.csv")
+    return results
 
 
 def process_reproducibility(df, parameters):
-    """
-    Processes Multisite data (Expected: Sample, Machine, Day, Scan).
-    Matches CLSI EP05-A3 Section 4.7
-    """
-    print("Processing Reproducibility (Multisite) Study...")
 
-    # Create string columns
+    # Create string columns for accurate categorical modeling
     df['Machine_str'] = df['Machine'].astype(str)
     df['Machine_Day_str'] = df['Machine'].astype(str) + "_" + df['Day'].astype(str)
 
     results = []
-
     for param in parameters:
-        for sample, sample_data in df.groupby('Sample'):
-            if sample_data[param].mean() == 0 or len(sample_data) < 5:
+        for sample, group in df.groupby('Sample'):
+            N = len(group[param].dropna())
+            mean_val = group[param].mean()
+
+            if mean_val == 0 or len(group) < 5 or group[param].std() == 0:
+                results.append({'Parameter': param, 'Sample': sample, 'N': N, 'Mean': 0.0, 'constant': True})
                 continue
 
-            mean_val = sample_data[param].mean()
+            # --- Use the LMM Engine from processing.py ---
+            v_machine, v_day, v_scan = fit_mixed_model(group, param, "Machine_str", "Machine_Day_str")
+            v_repro = v_scan + v_day + v_machine
 
-            # Use the shared statistical engine
-            v_machine, v_day, v_scan = fit_mixed_model(sample_data, param, "Machine_str", "Machine_Day_str")
-            v_repro = v_scan + v_day + v_machine  # Total Reproducibility
-
-            # Standard Deviations
             sd_scan, sd_day, sd_machine, sd_repro = np.sqrt([v_scan, v_day, v_machine, v_repro])
-
-            # Calculate Degrees of Freedom
-            df_rep, df_repro = calculate_dfs(sample_data, "Machine_str", "Machine_Day_str", v_machine, v_day, v_scan)
-
-            # Calculate Confidence Intervals
-            ci_sd_rep, ci_cv_rep = calculate_ci(sd_scan, mean_val, df_rep)
-            ci_sd_repro, ci_cv_repro = calculate_ci(sd_repro, mean_val, df_repro)
-
-            # %CVs
             cv_scan = (sd_scan / mean_val) * 100
             cv_day = (sd_day / mean_val) * 100
             cv_machine = (sd_machine / mean_val) * 100
             cv_repro = (sd_repro / mean_val) * 100
 
-            # Evaluate pass/fail status
-            status, metric_used = evaluate_status(mean_val, sd_repro, cv_repro, param)
+            # --- Satterthwaite DFs and CIs ---
+            df_rep_val, df_repro_val = calculate_dfs(group, "Machine_str", "Machine_Day_str", v_machine, v_day, v_scan)
+            ci_sd_rep, ci_cv_rep = calculate_ci(sd_scan, mean_val, df_rep_val)
+            ci_sd_repro, ci_cv_repro = calculate_ci(sd_repro, mean_val, df_repro_val)
+
+            status, _ = evaluate_status(mean_val, sd_repro, cv_repro, param)
 
             results.append({
-                'Parameter': param,
-                'Sample': sample,
-                'Mean': round(mean_val, 4),
-                'Repeatability SD': round(sd_scan, 4),
-                'Repeatability %CV': round(cv_scan, 2),
-                'Between-Day SD': round(sd_day, 4),
-                'Between-Day %CV': round(cv_day, 2),
-                'Between-Site SD': round(sd_machine, 4),
-                'Between-Site %CV': round(cv_machine, 2),
-                'Reproducibility SD': round(sd_repro, 4),
-                'Reproducibility %CV': round(cv_repro, 2),
-                'Status': status,
-                'Metric Evaluated': metric_used
+                'Parameter': param, 'Sample': sample, 'N': N, 'Mean': mean_val, 'constant': False,
+                'Rep_SD': sd_scan, 'Rep_CV': cv_scan, 'BD_SD': sd_day, 'BD_CV': cv_day,
+                'BS_SD': sd_machine, 'BS_CV': cv_machine, 'Total_SD': sd_repro, 'Total_CV': cv_repro,
+                'Status': status, 'DF_Rep': round(df_rep_val, 2), 'Rep_SD_CI': ci_sd_rep, 'Rep_CV_CI': ci_cv_rep,
+                'DF_Total': round(df_repro_val, 2), 'Total_SD_CI': ci_sd_repro, 'Total_CV_CI': ci_cv_repro
             })
-
-        # export_results(results, f"results/Table_4.7_Reproducibility_{param}.csv")
-    export_results(results, f"results/Reproducibility.csv")
+    return results
