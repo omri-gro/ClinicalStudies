@@ -9,8 +9,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from pathlib import Path
 
 import sys
-sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
-from table_integrity import *
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
+from clinstudtools import careful_map, safe_pivot, robust_dup
 
 
 class MetadataBundle:  # to do: add attribute for thresholds & grades?
@@ -981,7 +981,7 @@ def curate_df(df, metadata, src=None, wbcs_as_counts=False):
 
 
 
-def min_inv_filt(df, mthd, min_inv=2):
+def min_inv_filt(df, mthd, min_inv=2, exact=False):
     """
     Keep only (SampleID, Site, Variable) groups with >= min_inv unique investigators.
 
@@ -999,7 +999,12 @@ def min_inv_filt(df, mthd, min_inv=2):
 
     # check number of investigators that reviewed each sample
     inv_counts = invs_df.groupby(subset)["Investigator"].transform('nunique')
-    mask_keep = inv_counts >= min_inv
+    if exact:
+        mask_keep = (inv_counts == min_inv)
+        sign = '=='
+    else:
+        mask_keep = inv_counts >= min_inv
+        sign = '>='
     out_df = invs_df.loc[mask_keep].copy()
 
     # ---- Reporting at (SampleID, Site) level ----
@@ -1030,7 +1035,7 @@ def min_inv_filt(df, mthd, min_inv=2):
     if len(flagged):
         print(
             f"Flagging {len(flagged)} (SampleID, Site) pairs where kept variables fraction "
-            f"< {report_if_kept_frac_lt:.2f} after requiring >= {min_inv} investigators per variable.\n"
+            f"< {report_if_kept_frac_lt:.2f} after requiring {sign} {min_inv} investigators per variable.\n"
             f"Examples:\n{flagged.head(30).reset_index().to_string(index=False)}"
         )
 

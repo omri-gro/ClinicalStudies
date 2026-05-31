@@ -7,6 +7,7 @@ from sandbox import *
 from pipelines import mean_manual_pipe, medium_pipe
 
 if __name__ == "__main__":
+    suffix = ''
     sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
@@ -14,13 +15,13 @@ if __name__ == "__main__":
     ref_arm = 'manual'
 
     bin_params = False
-    inter = True
+    inter = False
 
-    exprt_long = False
-    exprt_mtrx = False
-    plot_reg = True
+    exprt_long = True
+    exprt_mtrx = True
+    plot_reg = False
 
-    min_inv = False  # False or number  currently does not seem to make much of a difference
+    min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
     max_unclass = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
@@ -28,7 +29,6 @@ if __name__ == "__main__":
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False
 
-    suffix = ''
     max_unclassstr = f'_maxuncls{max_unclass}' if max_unclass else ''
     min_wbcstr = f'_minwbc{min_wbc}' if min_wbc else ''
     rmv_brdstr = '_bdrrmv' if rmv_brd else ''
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     investigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1', 'Ana Catarina Silva': 'Rev1',
                         'Sarah Pereira Rodrigues': 'Rev1', 'Maria Buen Viana De Perio': 'Rev1',
-                        'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Donald': 'Rev1',
+                        'Christine Lavoie': 'Rev1', 'Christine Lavoie ': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Donald': 'Rev1',
                         'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
                         'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2',
                         'Harsha Hirani': 'Rev2', 'Harsha HIrani': 'Rev2',
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
     df = df.query("Value!='--------'")
 
-    df['Investigator'] = df['Investigator'].map(investigators_map)
+    df['Investigator'] = careful_map(df['Investigator'], investigators_map)
     df = add_mean_investigator(df, mthd=ref_arm, min_inv=min_inv)
 
     binary_vars = metadata.variable_groups["PLT morphology"] + metadata.variable_groups["RBC arrangement"] + metadata.variable_groups["WBC morphology"]
@@ -148,8 +148,8 @@ if __name__ == "__main__":
 
     if exprt_long:
         include_in_export = vals_to_print + grades_to_print
-        df_long = methd_comp.df.query(f"Variable in @include_in_export and Method=='{ref_arm}' and Investigator!='Mean Investigator'")[['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
-        write_df_to_file(df_long, rf'comp_tables/{save_name}_long.csv')
+        df_long = methd_comp.df.query(f"Variable in @include_in_export and Investigator!='Mean Investigator'")[['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
+        write_df_to_file(df_long, rf'comp_tables/{save_name}_long_no_renaming.csv')
 
 
     if inter:

@@ -368,6 +368,7 @@ variables:
   aliases:
    - PLT SATELLITISM NOTED ON SMEAR
    - Platelets Satellitism
+   - PLT Satellitism
    - PLT morphology (present / not present) [PLT Satellitism]
    - platelet_satellitism_count
   groups:

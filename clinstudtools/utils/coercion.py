@@ -9,6 +9,7 @@
 import pandas as pd
 from typing import Any, List, Iterable, Mapping, Optional, Sequence, Union, Tuple
 import numpy as np
+import warnings
 
 
 def as_df(
@@ -78,19 +79,21 @@ def ensure_list(x):
 
 
 # Backward-compatible alias
-def _as_df(obj_or_df: Any) -> pd.DataFrame:
-    """
-    Backward-compatible wrapper around as_df().
-    Keeps existing call sites unchanged during refactoring.
-    """
-    return as_df(obj_or_df, attr="df", copy=True)
+def _ensure_list(*args, **kwargs):
+    warnings.warn(
+        "utils._ensure_list is deprecated; use utils.coercion.ensure_list",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return ensure_list(*args, **kwargs)
 
-def _ensure_list(x):
-    """
-    If argument is a tuple, convert to list.
-    If argument is anything else but a list, return list containing that one object.
-    """
-    return ensure_list(x)
+def _as_df(*args, **kwargs):
+    warnings.warn(
+        "utils._as_df is deprecated; use utils.coercion.as_df",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return as_df(*args, **kwargs)
 
 
 

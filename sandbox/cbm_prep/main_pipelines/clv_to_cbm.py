@@ -19,9 +19,9 @@ from itertools import *
 
 if __name__ == "__main__":
     inter = False
-    comp_with_cbm = True
+    comp_with_cbm = False
 
-    min_inv = 2  # False or number
+    min_inv = 1  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
@@ -40,13 +40,19 @@ if __name__ == "__main__":
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
+    by_rev_comp = True
+    rbc_agg_params = True
 
     sites = ['BWH', 'LMU', 'TASMC']
     inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
-               'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Sladana Nikolic': 'Rev2', 'Nikolic Sladana': 'Rev2',
+               'Nikolic Sladana': 'Rev2', 'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Sladana Nikolic': 'Rev2',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
+    names_map = {'Alina': 'Alina', 'Alina KÃ¼pper': 'Alina', 'Christine Lavoie': 'Christine', 'Ebikebuna Rufus': 'Ebi',
+                 'Sarah Pereira Rodrigues': 'Sarah', 'Nikolic Sladana': 'Sladana', 'Sladana Nikolic': 'Sladana',
+                 'Sladana': 'Sladana', 'Christopher Wright': 'Chris', 'Thu Tran': 'Thu', 'YAEL SAYEGH': 'Yael',
+                 'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
     pair_map = {'Alina': 'Alina&Sladana', 'Alina KÃ¼pper': 'Alina&Sladana', 'Christine Lavoie': 'Christine&Chris', 'Ebikebuna Rufus': 'Ebi&Thu', 'Sarah Pereira Rodrigues': 'Sarah&Yael',
                'Sladana': 'Alina&Sladana', 'Christopher Wright': 'Christine&Chris', 'Thu Tran': 'Ebi&Thu', 'YAEL SAYEGH': 'Sarah&Yael', 'Nikolic Sladana': 'Alina&Sladana',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
@@ -57,14 +63,18 @@ if __name__ == "__main__":
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
-    meta_path = r'config.yaml'
+
+    if rbc_agg_params:
+        meta_path = r'special_config_files/config_agg.yaml'
+    else:
+        meta_path = r'config.yaml'
     metadata = MetadataBundle(meta_path)
 
     # from previous attempts to quantify PLT morphologies with ClV
-    vars_to_test = metadata.variable_groups['RBC morphology'] + metadata.variable_groups['PLT morphology'] + \
-                   metadata.variable_groups['RBC combinations']
+    vars_to_test = metadata.variable_groups.get('RBC morphology', []) + metadata.variable_groups.get('PLT morphology', []) + \
+                   metadata.variable_groups.get('RBC combinations', [])
 
-    vars_to_test = metadata.variable_groups['RBC diff']
+
     vars_to_print = vars_to_test + ['TotalRBC'] + ['TotalPLT']
     id_vars_clv = ["SampleID", "Site", "Method", "FileName", 'Investigator']
     id_vars_cbm = ["SampleID", "Site", "Method", "FileName"]
@@ -164,6 +174,18 @@ if __name__ == "__main__":
         if plot_reg:
             inter_comp.plot_all_regressions(f'results/clv/{int_save_name}_reg.pdf')
 
+
+
+    # --- comparison for each reviewer separately
+    if by_rev_comp:
+        methd_comp_by_rev = methd_comp.apply_to_df('query', f"Investigator!='Mean Investigator'", inplace=False)
+        methd_comp_by_rev.df['Investigator'] = methd_comp_by_rev.df['Investigator'].map(names_map)
+        for rev in methd_comp_by_rev.df['Investigator'].unique():
+            rev_row_filt = {"Investigator": [rev, test_arm]}
+            methd_comp_by_rev.batch_compare(levels_a=ref_arm, levels_b=test_arm, variables=vars_to_test, row_filters=rev_row_filt)
+        methd_comp_by_rev.save_results(rf'results/clv/{save_name}_by_rev_reg.csv')
+        if plot_reg:
+            methd_comp_by_rev.plot_all_regressions(f'results/clv/{save_name}_by_rev_reg.pdf')
 
     if comp_with_cbm:
         if inv_names_in_export:

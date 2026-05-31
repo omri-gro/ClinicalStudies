@@ -2,19 +2,22 @@ import pandas as pd
 import os
 
 # Math Engine
-from processing import process_repeatability, process_reproducibility
+from processing import process_repeatability, process_reproducibility, export_results
 # Printer Engine
 from report_creation import generate_docx
 
 # --- CONFIGURATION ---
 FILE_REPEATABILITY = r"raw/bma_repeatability.csv"
 FILE_REPRODUCIBILITY = r"raw/bma_reproducibility.csv"
-
+OUTPUT_DIR = "results"
 
 def main():
     print("Starting Precision Analysis...")
     rep_results = []
     repro_results = []
+
+    # Ensure output directory exists for our CSVs
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # ---------------------------------------------------------
     # 1. PROCESS REPEATABILITY (Single-Site)
@@ -31,6 +34,10 @@ def main():
 
         print("Calculating Repeatability variance components...")
         rep_results = process_repeatability(df_rep, rep_params)
+
+    if rep_results:
+        export_results(rep_results, os.path.join(OUTPUT_DIR, "Repeatability_Results.csv"))
+
     else:
         print(f"Skipping Repeatability: {FILE_REPEATABILITY} not found.")
 
@@ -49,6 +56,10 @@ def main():
 
         print("Calculating Reproducibility variance components...")
         repro_results = process_reproducibility(df_repro, repro_params)
+
+        if repro_results:
+            export_results(repro_results, os.path.join(OUTPUT_DIR, "Reproducibility_Results.csv"))
+
     else:
         print(f"Skipping Reproducibility: {FILE_REPRODUCIBILITY} not found.")
 

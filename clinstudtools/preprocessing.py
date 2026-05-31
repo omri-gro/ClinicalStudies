@@ -267,3 +267,11 @@ def one_to_one_hundered(df, metadata, diff_cells='percent', diff_like_cells='per
         print(f"[INFO] {diff_cells} values appeared to be fractions. Converted to percentages by multiplying by 100.")
 
     return df
+
+def careful_map(sris, map_dict):
+    # finds values that do not have a map and print them as message
+    unique_values = set(sris.dropna())
+    missing_values = unique_values - set(map_dict.keys())
+    if missing_values:
+        print(f"\033[91mWARNING: The following values are missing from the dictionary and will become NaN: {missing_values}\033[0m")
+    return sris.map(map_dict)
