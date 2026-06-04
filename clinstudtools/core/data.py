@@ -2,9 +2,7 @@ import pandas as pd
 from dataclasses import dataclass, field
 from typing import Any, Optional, Mapping, Tuple
 
-import sys
-sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
-from table_integrity import *
+from ..table_integrity import *
 
 RowFilters = Mapping[str, Any]
 

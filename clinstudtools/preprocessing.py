@@ -4,7 +4,7 @@ import re
 import os
 import pandas as pd
 
-from .transforms import robust_dup as _robust_dup
+from .table_integrity import robust_dup as _robust_dup
 from .core import MetadataBundle
 from .utils import read_to_df
 

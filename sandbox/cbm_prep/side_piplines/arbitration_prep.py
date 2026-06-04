@@ -11,30 +11,11 @@ sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
 from clinstudtools import safe_pivot
 from clinstudtools.utils import write_df_to_file
 
-# can later move to sandbox or clinstudtools
-def assign_dynamic_roles(df, group_cols=['Site', 'SampleID'], inv_col='Investigator', prefix='Rev'):
-    """
-    Dynamically assigns relative reviewer roles per sample to avoid hardcoded mappings.
-    Optionally preserves the original name in a new column for traceability.
-    """
-    df = df.copy()
-
-    # Save the original name just in case you need it for debugging/arbitration
-    if 'Original_Investigator' not in df.columns:
-        df['Original_Investigator'] = df[inv_col]
-
-    # Assign the dynamic role using a list comprehension to avoid NumPy string errors
-    df[inv_col] = (
-        df.groupby(group_cols)[inv_col]
-        .transform(lambda x: [f"{prefix}{i + 1}" for i in pd.factorize(x)[0]])
-    )
-
-    return df
 
 
 if __name__ == "__main__":
     # read long table containing cases reviewed by two reviewers
-    long_file = r'mnl_allssn__mininv2_long_no_renaming.csv'
+    long_file = r'mnl_allssn__mininv2_aftrlstssn_long_no_renaming.csv'
     long_df = read_to_df(long_file, file_dir=r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\cbm_prep\comp_tables')
     long_df.sort_values(by=['Site', 'SampleID', 'Variable', 'Investigator'])
 
@@ -127,7 +108,7 @@ if __name__ == "__main__":
     )
 
     ptnt_num_arb = ptnt_num_arb.drop(columns=['Mean_x', 'Mean_y', 'BothIn99', 'CBM_in99', 'Already checked', 'CBM_exists'])
-    write_df_to_file(ptnt_num_arb, r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\cbm_prep\results\side_games\potential_arbitration_mnl_3105.csv')
+    write_df_to_file(ptnt_num_arb, r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\cbm_prep\results\side_games\potential_arbitration_mnl_0406.csv')
 
 
 

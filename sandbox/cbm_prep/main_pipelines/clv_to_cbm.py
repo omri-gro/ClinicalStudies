@@ -20,8 +20,9 @@ from itertools import *
 if __name__ == "__main__":
     inter = False
     comp_with_cbm = False
+    sen_spec = True
 
-    min_inv = 1  # False or number
+    min_inv = 2  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
@@ -36,14 +37,14 @@ if __name__ == "__main__":
 
     save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}'
 
-    intr_by_pair = True
+    intr_by_pair = False
 
-    exprt_long = True
-    exprt_mtrx = True
+    exprt_long = False
+    exprt_mtrx = False
     plot_reg = False
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
-    by_rev_comp = True
-    rbc_agg_params = True
+    by_rev_comp = False  # perform comparison for each reviewer separately
+    rbc_agg_params = False  # parameters like Oval+Ellip, Acan+Echin
 
     sites = ['BWH', 'LMU', 'TASMC']
     inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
@@ -186,6 +187,16 @@ if __name__ == "__main__":
         methd_comp_by_rev.save_results(rf'results/clv/{save_name}_by_rev_reg.csv')
         if plot_reg:
             methd_comp_by_rev.plot_all_regressions(f'results/clv/{save_name}_by_rev_reg.pdf')
+
+
+    if sen_spec:
+        bin_comp = methd_comp.apply_to_df('query', f"Investigator=='Mean Investigator' or Investigator=='{test_arm}'", inplace=False)
+        bin_comp.batch_compare(levels_a=ref_arm, levels_b=test_arm,
+                               variables=vars_to_test, comp_func='sen_spe', cis=False)
+        bin_comp.batch_compare(levels_a=ref_arm, levels_b=test_arm,
+                               variables=vars_to_test, comp_func='sen_spe', split_by='Site', cis=False)
+        bin_comp.save_results(rf'results/clv/{save_name}_sen_spe.csv', result_type="sen_spe")
+
 
     if comp_with_cbm:
         if inv_names_in_export:

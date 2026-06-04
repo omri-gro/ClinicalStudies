@@ -271,7 +271,7 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None, **kwargs):
             df = pd.read_excel(filepath, sheet_name=sheet_name)
             # print(f"Loaded Excel file: {filepath}")
         elif ext == '.csv':
-            df = pd.read_csv(filepath, **kwargs)
+            df = pd.read_csv(filepath, encoding_errors='replace', **kwargs)
             # print(f"Loaded CSV file: {filepath}")
         else:
             raise ValueError(f"\033[93mUnsupported file format: {ext}\033[0m")
@@ -979,6 +979,26 @@ def curate_df(df, metadata, src=None, wbcs_as_counts=False):
 
     return df
 
+
+def assign_dynamic_roles(df, group_cols=['Site', 'SampleID'], inv_col='Investigator', prefix='Rev'):
+    """
+    Dynamically assigns relative reviewer roles per sample to avoid hardcoded mappings.
+    Optionally preserves the original name in a new column for traceability.
+    """
+    df = df.copy()
+    df = df.reset_index(drop=True)
+
+    # Save the original name just in case you need it for debugging/arbitration
+    if 'Original_Investigator' not in df.columns:
+        df['Original_Investigator'] = df[inv_col]
+
+    # Assign the dynamic role using a list comprehension to avoid NumPy string errors
+    df[inv_col] = (
+        df.groupby(group_cols)[inv_col]
+        .transform(lambda x: [f"{prefix}{i + 1}" for i in pd.factorize(x)[0]])
+    )
+
+    return df
 
 
 def min_inv_filt(df, mthd, min_inv=2, exact=False):

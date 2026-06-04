@@ -159,7 +159,9 @@ class MethodComparator:
                      filtering_source: Union[str, Path, pd.DataFrame],
                      filtering_cols: Optional[Sequence[str]] = None,
                      include_rows=False,
-                     both=False):
+                     both=False,
+                     target_vars: Optional[Union[str, Sequence[str]]] = None,
+                     metadata: Optional["MetadataBundle"] = None):
         """
         Using a dataframe of samples to exclude/include (or a file containing one), create new MethodComparator only without/with those rows.
         filtering_cols - Sequence of column names to use for filtering (e.g., ['Site', 'SampleID', 'Investigator', 'Method']),
@@ -167,6 +169,10 @@ class MethodComparator:
         include_rows - Change to True so resulting df will have only samples included in the filtering_source, instead of those that don't  (overwrites both).
         both - Change to True to get both the MethodComparator where specified samples excluded and the one with only those samples included.
              - need to test this functionality in future
+
+        target_vars - If provided, filtering only drops/keeps rows for these specific variables.
+                      Data for other variables in the same sample is left untouched.
+        metadata - Used to unpack variable groups (e.g., 'WBC diff') if target_vars is provided.
         """
         df2 = filtering_source if isinstance(filtering_source, pd.DataFrame) else sb.raw_to_df(filtering_source)
         if df2.empty:
@@ -195,6 +201,32 @@ class MethodComparator:
         keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())
         mask = pd.MultiIndex.from_frame(df1_com).isin(keys_df2)  # samples appearing in both are in True
 
+
+        # target variable filtering
+        if target_vars is not None:
+            target_vars = _ensure_list(target_vars)
+
+            # Expand groups using metadata if provided
+            if metadata:
+                expanded_vars = []
+                for tv in target_vars:
+                    expanded_vars.extend(metadata.variable_groups.get(tv, [tv]))
+                target_vars = expanded_vars
+
+            is_target_var = df1['Variable'].isin(target_vars)
+
+            if include_rows:
+                # Keep if it is NOT (a target variable AND missing from the filter file)
+                final_mask = ~(is_target_var & ~mask)
+            else:
+                # Keep if it is NOT (a target variable AND present in the filter file)
+                final_mask = ~(is_target_var & mask)
+
+            out_df = df1.loc[final_mask].copy()
+            return MethodComparator(out_df, self.measurement_col)
+
+
+        # global filtering
         if both:
             incl_df = df1.loc[mask].copy()
             exclude_df = df1.loc[~mask].copy()
@@ -1046,14 +1078,18 @@ class MethodComparator:
             mtrcs_strngs = []
             for mtr_name in ['sensitivity', 'specificity', 'agreement']:
                 mtr_dict = mtrcs[mtr_name]
-                pnt_est = mtr_dict['value']
-                if math.isnan((pnt_est)):
-                    mtrcs_strngs.append("NA")
-                else:
-                    pnt_est = pnt_est * 100
-                    bottom = mtr_dict['ci'][0] * 100
-                    top = mtr_dict['ci'][1] * 100
-                    mtrcs_strngs.append(f"{pnt_est:.1f}\n({bottom:.1f}-{top:.1f})")
+                if isinstance(mtr_dict, dict):
+                    pnt_est = mtr_dict['value']
+                    if math.isnan((pnt_est)):
+                        mtrcs_strngs.append("NA")
+                    else:
+                        pnt_est = pnt_est * 100
+                        bottom = mtr_dict['ci'][0] * 100
+                        top = mtr_dict['ci'][1] * 100
+                        mtrcs_strngs.append(f"{pnt_est:.1f}\n({bottom:.1f}-{top:.1f})")
+                elif isinstance(mtr_dict, float):
+                    pnt_est = mtr_dict * 100
+                    mtrcs_strngs.append(f"{pnt_est:.1f}")
 
             row = self._base_result_row(rec)
             results = {
@@ -1179,7 +1215,7 @@ class MethodComparator:
             df = self.regressions_to_dataframe()
         elif result_type in ["bias", "Bias"]:
             df = self.biases_to_dataframe()
-        elif result_type in ["senspe", "SenSpe", "binary", "Binary"]:
+        elif result_type in ["senspe", "SenSpe", "binary", "Binary", "sen_spe"]:
             df = self.metrics_to_dataframe()
         elif result_type in ['confusion_matrix', 'Confusion Matrix']:
             df = self.crosstabs_to_dataframe()

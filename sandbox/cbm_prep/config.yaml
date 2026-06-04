@@ -12,6 +12,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [40, 70]
   normal_range: [40, 70]
  Band Neutrophil:
@@ -26,12 +27,13 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 3]
   normal_range: [0, 3]
  Metamyelocyte:
   aliases:
    - Metamyelocytes %
-   - Metamyelocyte %
+   - Metamyelסcyte %
    - Metamyelocytes
    - metamyelocyte
    - metamyelocyte_percentage
@@ -39,6 +41,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 2]
   normal_range: [0, 2]
  Myelocyte:
@@ -53,6 +56,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 2]
   normal_range: [0, 2]
  Promyelocyte:
@@ -66,6 +70,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 2]
   normal_range: [0, 2]
  Blast:
@@ -80,6 +85,7 @@ variables:
    - percent
    - WBC&PLT compare
    - OMR compare
+   - WBC diff-related
   crit_points: [0, 2, 5]
   normal_range: [0, 2]
  Plasma Cell:
@@ -94,6 +100,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
  Lymphocyte:
@@ -108,6 +115,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [20, 50]
   normal_range: [20, 50]
  LGL:
@@ -123,6 +131,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 10, 15]
   normal_range: [0, 5]
  Atypical Lymphocyte:
@@ -137,6 +146,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 20, 40]
   normal_range: [0, 5]
  Aberrant Lymphocyte:
@@ -149,6 +159,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 2]
   normal_range: [0, 2]
  Hairy Cell:
@@ -162,6 +173,7 @@ variables:
    - WBC diff
    - percent
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 1, 2]
   normal_range: [0, 1]
  Sezary Cell:
@@ -173,6 +185,7 @@ variables:
   groups:
    - WBC diff
    - percent
+   - WBC diff-related
   normal_range: [0, 0.5]
  Monocyte:
   aliases:
@@ -188,6 +201,7 @@ variables:
    - percent
    - WBC&PLT compare
    - OMR compare
+   - WBC diff-related
   crit_points: [4, 8]
   normal_range: [4, 8]
  Basophil:
@@ -204,6 +218,7 @@ variables:
    - percent
    - WBC&PLT compare
    - OMR compare
+   - WBC diff-related
   crit_points: [0, 2, 5]
   normal_range: [0, 2]
  Eosinophil:
@@ -220,6 +235,7 @@ variables:
    - percent
    - WBC&PLT compare
    - OMR compare
+   - WBC diff-related
   crit_points: [0, 6]
   normal_range: [0, 6]
  Unclassified WBC:
@@ -233,6 +249,7 @@ variables:
    - WBC diff
    - percent
    - noncomparable
+   - WBC diff-related
  Other WBC:
   aliases:
    - Other
@@ -243,6 +260,7 @@ variables:
    - WBC diff
    - percent
    - noncomparable
+   - WBC diff-related
  NRBC:
   aliases:
    - Erythroblast (NRBC)
@@ -261,6 +279,7 @@ variables:
    - percent-like
    - WBC&PLT compare
    - OMR compare
+   - WBC diff-related
   crit_points: [0, 1]
   normal_range: [0, 1]
  Smudge Cell:
@@ -272,8 +291,10 @@ variables:
    - smudge_cell_percentage
   groups:
    - WBC-like
-   - percent-like
+   - density
+   - count
    - WBC&PLT compare
+   - WBC diff-related
   crit_points: [0, 1]
   normal_range: [0, 10]
  Megakaryocyte:
@@ -320,9 +341,10 @@ variables:
    - pelger cell
    - pelger_cell_percentage
   groups:
-   - WBC morphology
-   - density
-   - binary
+   - WBC-like
+   - percent-like
+   - WBC&PLT compare
+   - WBC diff-related
   normal_range: [0, 1]
  Auer Rods:
   aliases:
@@ -333,9 +355,10 @@ variables:
    - blast auer rods
    - blast_auer_rods_percentage
   groups:
-   - WBC morphology
-   - density
-   - binary
+   - WBC-like
+   - percent-like
+   - WBC&PLT compare
+   - WBC diff-related
   normal_range: [0, 1]
  PLT:
   aliases:
@@ -363,18 +386,20 @@ variables:
    - PLT morphology
    - density
    - binary
+   - PLT arrangement
   normal_range: [0, 5]
  Satellitisms:
   aliases:
    - PLT SATELLITISM NOTED ON SMEAR
    - Platelets Satellitism
-   - PLT Satellitism
    - PLT morphology (present / not present) [PLT Satellitism]
+   - PLT Satellitism
    - platelet_satellitism_count
   groups:
    - PLT morphology
    - density
    - binary
+   - PLT arrangement
   normal_range: [0, 5]
  Giant Platelet:
   aliases:

@@ -6,6 +6,9 @@ from objects import MethodComparator
 from sandbox import *
 from pipelines import mean_manual_pipe, medium_pipe
 
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
+from clinstudtools import careful_map, safe_pivot, robust_dup, apply_arbitration_override
+
 if __name__ == "__main__":
     suffix = ''
     sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
@@ -28,13 +31,17 @@ if __name__ == "__main__":
     diff500 = False
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False
+    cbm_thresholding = False  # if True than CBM<1% changes to 0 for hairy cells, LGL and atypical
+    after_last_ssn = True  # for lym types, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
 
     max_unclassstr = f'_maxuncls{max_unclass}' if max_unclass else ''
     min_wbcstr = f'_minwbc{min_wbc}' if min_wbc else ''
     rmv_brdstr = '_bdrrmv' if rmv_brd else ''
     diff500str = '_diff500' if diff500 else ''
     scnd_ssn_str = '_aftr2ndssn' if aftr_2nd_ssn else ''
-    save_name = f'mnl_{crf_ssn}ssn_{max_unclassstr}{min_wbcstr}{rmv_brdstr}_mininv{min_inv}{diff500str}{scnd_ssn_str}{suffix}'
+    cbm_thres_str = '_cbm_thres' if cbm_thresholding else ''
+    after_last_ssn_str = '_aftrlstssn' if after_last_ssn else ''
+    save_name = f'mnl_{crf_ssn}ssn_{max_unclassstr}{min_wbcstr}{rmv_brdstr}_mininv{min_inv}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{suffix}'
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
@@ -42,16 +49,50 @@ if __name__ == "__main__":
 
     metadata = MetadataBundle(meta_path)
 
-    investigators_map = {'Alina': 'Rev1', 'Aubrey B Charlton': 'Rev1', 'Thomas Muddiman': 'Rev1', 'Ana Catarina Silva': 'Rev1',
-                        'Sarah Pereira Rodrigues': 'Rev1', 'Maria Buen Viana De Perio': 'Rev1',
-                        'Christine Lavoie': 'Rev1', 'Christine Lavoie ': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Donald': 'Rev1',
-                        'Sladana': 'Rev2', 'Deborah Swearingen': 'Rev2', 'Tony Omigie': 'Rev2',
-                        'Joy Arthur': 'Rev2', 'Tiffany I Highsmith': 'Rev2', 'Tiffany I. Highsmith': 'Rev2',
-                        'Harsha Hirani': 'Rev2', 'Harsha HIrani': 'Rev2',
-                        'YAEL ASYEGH': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Yael S': 'Rev2', 'Yael Sayegh': 'Rev2',
-                        'Yael S ': 'Rev2',
-                        'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'THU TRAN': 'Rev2',
-                        'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
+    investigators_map = {
+        # Standardize typos/variations
+        'Christopher Wright': 'Chris',
+        'Christine Lavoie': 'Christine',
+        'Ebikebuna Rufus': 'Ebi',
+        'Ebikebuna Rufus F.': 'Ebi',
+        'Ebikebuna Rufus F': 'Ebi',
+        'Thu Tran': 'Thu',
+        'THU TRAN': 'Thu',
+        'Aubrey B Charlton': 'Aubrey',
+        'Deborah Swearingen': 'Deborah',
+        'Maria Buen Viana De Perio': 'Buen',
+        'Joy Arthur': 'Joy',
+        'Madison Brooks': 'Madison',
+        'Michelle Huynh': 'Michelle',
+        'Michelle huynh': 'Michelle',
+        'Tiffany I Highsmith': 'Tiffany',
+        'Tiffany I. Highsmith': 'Tiffany',
+        'Alina KÃƒÂ¼pper': 'Alina',
+        'Alina': 'Alina',
+        'Sladana Nikolic': 'Sladana',
+        'Nikolic Sladana': 'Sladana',
+        'Sladana': 'Sladana',
+        'Ana Catarina Silva': 'Ana',
+        'Harsha Hirani': 'Harsha',
+        'Harsha HIrani': 'Harsha',
+        'Thomas Muddiman': 'Thomas',
+        'Tony Omigie': 'Tony',
+        'Sarah Pereira Rodrigues': 'Sarah',
+        'YAEL SAYEGH': 'Yael',
+        'Yael Sayegh': 'Yael',
+        'Yael S': 'Yael',
+        'YAEL ASYEGH': 'Yael',
+
+        # Explicitly tag Arbitrators
+        'Jared Block': 'Arbitrator',
+        'Jennifer Egan': 'Arbitrator',
+        'Dr. med. Weigand, Michael': 'Arbitrator',
+        'Dr Guy Hannah': 'Arbitrator',
+        'Dan BENISTY': 'Arbitrator',
+
+        # Preserve system/automated roles
+        'CBM': 'CBM',
+        'Mean Investigator': 'Mean Investigator'}
 
     df_srcs_list = []
     for site in sites:
@@ -74,8 +115,13 @@ if __name__ == "__main__":
 
     if diff500:
         diff500_file = 'flt_lists/500_WBC_mnl_cases.csv'
-        diff500_df = read_to_df(diff500_file, file_dir=os.getcwd())
-        methd_comp = methd_comp.filter_by_df(diff500_df, include_rows=True)
+        # ONLY include these samples for Aberrant Lymphocyte and Plasma Cell.
+        # Other variables (like Segmented Neutrophil) keep all samples.
+        methd_comp = methd_comp.filter_by_df(
+            diff500_file,
+            include_rows=True,
+            target_vars=['Aberrant Lymphocyte', 'Plasma Cell']
+        )
 
     if crf_ssn == "post":
         rmv_file = 'flt_lists/pre_session_reviews.csv'
@@ -87,14 +133,38 @@ if __name__ == "__main__":
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
 
-    # calculate mean investigator
+    if after_last_ssn:
+        last_ssn_file = 'flt_lists/after_last_session.xlsx'
+        methd_comp = methd_comp.filter_by_df(
+            last_ssn_file,
+            include_rows=True,
+            target_vars=['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Smudge Cell',
+                         'RBC Agglutination', 'Rouleaux', 'Pelger Cell', 'Auer Rods',
+                         'Aber&Atyp', 'Variant Lymphocyte']
+        )
+
+
     df = methd_comp.df
-
-    df = df.query("Value!='--------'")
-
+    df = df.query("Value!='--------'").copy()
+    # Standardize names and tag the Arbitrator
     df['Investigator'] = careful_map(df['Investigator'], investigators_map)
-    df = add_mean_investigator(df, mthd=ref_arm, min_inv=min_inv)
+    # 2. Isolate the Arbitrator
+    arb_mask = df['Investigator'] == 'Arbitrator'
+    arb_df = df[arb_mask].copy()
+    regular_df = df[~arb_mask].copy()
 
+    # Dynamically assign roles (Rev1, Rev2, etc.) ONLY to regular reviewers
+    regular_df = assign_dynamic_roles(regular_df, group_cols=['Site', 'SampleID'])
+
+    # Calculate Mean Investigator ONLY on regular reviewers, returning the arbitrator lines afterwards
+    regular_df = add_mean_investigator(regular_df, mthd=ref_arm, min_inv=min_inv)
+    df = pd.concat([regular_df, arb_df], ignore_index=True)
+
+    # Load arbitration rules (which samples/variables to override) and apply Quantitative Override (Overwrites 'Mean Investigator')
+    arb_rules = read_to_df('flt_lists/for_arbitration.csv', file_dir=os.getcwd())
+    df = apply_arbitration_override(df, arb_df, arb_rules, metadata)
+
+    # still need to deal with arbitration of binary and graded parameters
     binary_vars = metadata.variable_groups["PLT morphology"] + metadata.variable_groups["RBC arrangement"] + metadata.variable_groups["WBC morphology"]
     raw_grade_cond=lambda d: (
         d["Method"].isin([ref_arm])
@@ -108,23 +178,26 @@ if __name__ == "__main__":
     df = create_derived_variables_long(df, metadata)
 
 
-    cbm_file_name = '6sites_CBM.csv'
+    cbm_file_name = 'all6_RGB_CBM.csv'
     cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison')
     # cbm_file_name = 'BWH_newRGB_CBM.csv'
     # cbm_df = medium_pipe(cbm_file_name, 'BWH', test_arm, metadata, dir=r'raw/cbm_method_comparison')
     cbm_df['Investigator'] = 'CBM'
 
+    if cbm_thresholding:
+        # notice that values below threshold changed to 0% after calculation of percentages, so other percentages will not add up to 100%
+        vars_to_thres = ['Hairy Cell', 'Atypical Lymphocyte', 'LGL']
+        thres = 1
+        cbm_df.loc[(cbm_df['Variable'].isin(vars_to_thres)) & (cbm_df['Value'] < thres), 'Value'] = 0
+
     all_dfs = pd.concat([df, cbm_df])
     methd_comp = MethodComparator(all_dfs)
 
-    # cases to always remove - waiting for arbitration, horrible scans, etc.
+    # cases to always remove - horrible slides, horrible scans, etc.
     rmv_file = 'flt_lists/low_quality.csv'
     rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
     methd_comp = methd_comp.filter_by_df(rmv_df)
 
-    rmv_file = 'flt_lists/for_arbitration.csv'
-    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-    methd_comp = methd_comp.filter_by_df(rmv_df)
 
     # cases of borderline quality - dirty, investigators' comments on quality, etc.
     if rmv_brd:
@@ -143,13 +216,17 @@ if __name__ == "__main__":
 
     if diff500:
         vars_to_test = ['Aberrant Lymphocyte', 'Plasma Cell']
-    elif aftr_2nd_ssn:
-        vars_to_test = ['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Smudge Cell']
+    elif cbm_thresholding:
+        vars_to_test = vars_to_thres
+    # elif aftr_2nd_ssn:
+    #     vars_to_test = ['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Smudge Cell']
 
     if exprt_long:
         include_in_export = vals_to_print + grades_to_print
-        df_long = methd_comp.df.query(f"Variable in @include_in_export and Investigator!='Mean Investigator'")[['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
-        write_df_to_file(df_long, rf'comp_tables/{save_name}_long_no_renaming.csv')
+        df_long = methd_comp.df.query(f"Variable in @include_in_export and Investigator!='Mean Investigator'")[['SampleID', 'Site', 'Method', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
+        write_df_to_file(df_long, rf'comp_tables/{save_name}_long_all_revs.csv')
+        df_long = methd_comp.df.query(f"Variable in @include_in_export and Investigator=='Mean Investigator'")[['SampleID', 'Site', 'Method', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
+        write_df_to_file(df_long, rf'comp_tables/{save_name}_long_final_values.csv')
 
 
     if inter:
