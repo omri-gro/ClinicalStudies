@@ -14,6 +14,9 @@ from sandbox import MetadataBundle, read_to_df, add_mean_investigator, add_grade
 from pipelines import medium_pipe, clv_pipe
 from itertools import *
 
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
+from clinstudtools import careful_map, safe_pivot, robust_dup, apply_arbitration_override
+
 
 
 
@@ -45,6 +48,7 @@ if __name__ == "__main__":
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
     rbc_agg_params = False  # parameters like Oval+Ellip, Acan+Echin
+    with_morph_spec = True
 
     sites = ['BWH', 'LMU', 'TASMC']
     inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
@@ -125,6 +129,8 @@ if __name__ == "__main__":
     # methd_comp = methd_comp.filter_by_df(rmv_df)
 
 
+
+
     # remove for arbitration only the morphologies in the arbitration categories
     arb_categories = {morph: ctgr for ctgr in ['RBC inclusions', 'RBC shape', 'RBC color'] for morph in metadata.variable_groups[ctgr]}
     methd_comp.df['Arbitration Category'] = methd_comp.df['Variable'].map(arb_categories)
@@ -148,7 +154,7 @@ if __name__ == "__main__":
         df_long = methd_comp.df.query(
             f"Variable in @arb_vars and Method=='{ref_arm}' and Investigator=='Mean Investigator'")[
             ['SampleID', 'Site', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
-        df_long['Investigator'] = df_long['Investigator'].map(inv_map)
+        df_long['Investigator'] = careful_map(df_long['Investigator'], inv_map)
         write_df_to_file(df_long, rf'comp_tables/{save_name}_long.csv')
 
     if inter:
@@ -156,8 +162,8 @@ if __name__ == "__main__":
 
         intr_df = methd_comp.only_when_cond(f"Investigator!='Mean Investigator' and Method=='{ref_arm}'").df.copy()
         if intr_by_pair:
-            intr_df['Site'] = intr_df['Investigator'].map(pair_map)
-        intr_df['Investigator'] = intr_df['Investigator'].map(inv_map)
+            intr_df['Site'] = careful_map(intr_df['Investigator'], pair_map)
+        intr_df['Investigator'] = careful_map(intr_df['Investigator'], inv_map)
         intr_df['Method'] = intr_df['Investigator']
         inter_comp = MethodComparator(intr_df)
         if exprt_mtrx:
@@ -180,7 +186,7 @@ if __name__ == "__main__":
     # --- comparison for each reviewer separately
     if by_rev_comp:
         methd_comp_by_rev = methd_comp.apply_to_df('query', f"Investigator!='Mean Investigator'", inplace=False)
-        methd_comp_by_rev.df['Investigator'] = methd_comp_by_rev.df['Investigator'].map(names_map)
+        methd_comp_by_rev.df['Investigator'] = careful_map(methd_comp_by_rev.df['Investigator'], names_map)
         for rev in methd_comp_by_rev.df['Investigator'].unique():
             rev_row_filt = {"Investigator": [rev, test_arm]}
             methd_comp_by_rev.batch_compare(levels_a=ref_arm, levels_b=test_arm, variables=vars_to_test, row_filters=rev_row_filt)
@@ -200,8 +206,7 @@ if __name__ == "__main__":
 
     if comp_with_cbm:
         if inv_names_in_export:
-            methd_comp.df['Investigator'] = methd_comp.df['Investigator'].map(inv_map)
-
+            methd_comp.df['Investigator'] = careful_map(methd_comp.df['Investigator'], inv_map)
 
         if exprt_mtrx:
             # csv with column for each investigator
