@@ -23,7 +23,7 @@ def write_df_to_file(df: pd.DataFrame, out_path: Union[str, Path]):
         raise ValueError("Format must be 'csv' or 'excel'.")
 
 
-def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
+def read_to_df(file_name, sheet_name='Sheet1', file_dir=None, encodings=['utf-8', 'windows-1252', 'latin1'], **kwargs):
     if file_dir is None:
         file_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "raw"))
 
@@ -37,11 +37,20 @@ def read_to_df(file_name, sheet_name='Sheet1', file_dir=None):
     ext = ext.lower()
     try:
         if ext in ['.xlsx', '.xls']:
-            df = pd.read_excel(filepath, sheet_name=sheet_name)
-            print(f"Loaded Excel file: {filepath} (sheet={sheet_name})")
+            df = pd.read_excel(filepath, sheet_name=sheet_name, **kwargs)
         elif ext == '.csv':
-            df = pd.read_csv(filepath)
-            print(f"Loaded CSV file: {filepath}")
+            for encoding in encodings:
+                try:
+                    # Attempt to read the CSV with the current encoding
+                    df = pd.read_csv(filepath, encoding=encoding, **kwargs)
+                    return df
+                except (UnicodeDecodeError, LookupError):
+                    # Catching UnicodeDecodeError for bad bytes
+                    # and LookupError in case an invalid encoding name is provided
+                    continue
+            raise ValueError(
+                f"Could not decode the file '{filepath}' with any of the attempted encodings: {encodings}"
+            )
         else:
             raise ValueError(f"\033[93mUnsupported file format: {ext}\033[0m")
     except Exception as e:

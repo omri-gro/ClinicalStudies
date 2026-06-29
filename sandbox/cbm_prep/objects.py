@@ -8,21 +8,22 @@ import os
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-
-import sandbox as sb
-import sys
-# sys.path.append(r'C:\Users\omrig\PycharmProjects\pythonProject\CBM_verification')
-sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\clinstudtools')
-import regressions as reg  # placeholder until integrating regression functions
+import warnings
 from dataclasses import dataclass, asdict
 from matplotlib.backends.backend_pdf import PdfPages
-import plotting
+
+import sandbox as sb
 from pipelines import medium_pipe, bma_prep_pipeline, mean_manual_pipe
+import regressions as reg  # placeholder until integrating regression functions
 from stats_sandbox import binary_classification_metrics, binary_classification_metrics_bootstrap
-from table_integrity import safe_pivot, filter_to_ids
-# from utils import _ensure_list
-from sandbox import _ensure_list
-from comparison_labels import normalize_filter_mapping, format_filter_label
+import plotting
+import sys
+
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
+from clinstudtools.transforms import filter_by_reference, filter_by_condition
+from clinstudtools.utils import ensure_list
+from clinstudtools.table_integrity import safe_pivot, filter_to_ids
+from clinstudtools.comparison_labels import normalize_filter_mapping, format_filter_label
 
 @dataclass
 class RegressionResult:
@@ -155,126 +156,36 @@ class MethodComparator:
         pass
 
     """ Methods creating new MethodComparators from existing ones"""
-    def filter_by_df(self,
-                     filtering_source: Union[str, Path, pd.DataFrame],
-                     filtering_cols: Optional[Sequence[str]] = None,
-                     include_rows=False,
-                     both=False,
-                     target_vars: Optional[Union[str, Sequence[str]]] = None,
-                     metadata: Optional["MetadataBundle"] = None):
-        """
-        Using a dataframe of samples to exclude/include (or a file containing one), create new MethodComparator only without/with those rows.
-        filtering_cols - Sequence of column names to use for filtering (e.g., ['Site', 'SampleID', 'Investigator', 'Method']),
-                         else infer from the filtering df.
-        include_rows - Change to True so resulting df will have only samples included in the filtering_source, instead of those that don't  (overwrites both).
-        both - Change to True to get both the MethodComparator where specified samples excluded and the one with only those samples included.
-             - need to test this functionality in future
-
-        target_vars - If provided, filtering only drops/keeps rows for these specific variables.
-                      Data for other variables in the same sample is left untouched.
-        metadata - Used to unpack variable groups (e.g., 'WBC diff') if target_vars is provided.
-        """
-        df2 = filtering_source if isinstance(filtering_source, pd.DataFrame) else sb.raw_to_df(filtering_source)
-        if df2.empty:
-            print(f'\033[34mNothing to filter out!\033[0m')
-            return self
-        if not filtering_cols:
-            filtering_cols = set(df2.columns)
-            # if want to use "FileName" as one of filtering columns, define filtering_cols directly and use DataFrame for filtering_source
-            filtering_cols.discard("FileName")
-
-        df1 = self.df.copy()
-        common = list(set(df1.columns) & set(filtering_cols))  # columns existing in both
-
-        df1_com = df1[common]
-        df2_com = df2[common]
-
-        # for cases where SampleID is int in one df and str in other, try converting df2's SampleID formats to df1's
-        # will need re-adjusting once SampleID which are not just numbers with zeros before
-        if pd.api.types.is_numeric_dtype(df2_com['SampleID'].dtype) and not pd.api.types.is_numeric_dtype(df1_com['SampleID'].dtype):
-            df2_com = df2_com[df2_com["SampleID"].notna()]
-            num0s = len(df1_com["SampleID"].astype(str).iloc[0])
-            ids_in_format = df2_com["SampleID"].astype(int).astype(str).str.zfill(num0s)
-            df2_com = df2_com.assign(SampleID=ids_in_format)
-
-        # Build a set-like MultiIndex of unique df2 keys, test membership for df1
-        keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())
-        mask = pd.MultiIndex.from_frame(df1_com).isin(keys_df2)  # samples appearing in both are in True
+    def filter_by_df(self, filtering_source, **kwargs):
+        warnings.warn(
+            "MethodComparator.filter_by_df is deprecated. Use clinstudtools.filtering.filter_by_reference instead on the raw DataFrame.",
+            DeprecationWarning, stacklevel=2
+        )
+        # Update self.df in place and return self for chaining
+        self.df = filter_by_reference(self.df, filtering_source, **kwargs)
+        return self
 
 
-        # target variable filtering
-        if target_vars is not None:
-            target_vars = _ensure_list(target_vars)
-
-            # Expand groups using metadata if provided
-            if metadata:
-                expanded_vars = []
-                for tv in target_vars:
-                    expanded_vars.extend(metadata.variable_groups.get(tv, [tv]))
-                target_vars = expanded_vars
-
-            is_target_var = df1['Variable'].isin(target_vars)
-
-            if include_rows:
-                # Keep if it is NOT (a target variable AND missing from the filter file)
-                final_mask = ~(is_target_var & ~mask)
-            else:
-                # Keep if it is NOT (a target variable AND present in the filter file)
-                final_mask = ~(is_target_var & mask)
-
-            out_df = df1.loc[final_mask].copy()
-            return MethodComparator(out_df, self.measurement_col)
-
-
-        # global filtering
-        if both:
-            incl_df = df1.loc[mask].copy()
-            exclude_df = df1.loc[~mask].copy()
-            return MethodComparator(incl_df, self.measurement_col), MethodComparator(exclude_df, self.measurement_col)
-
-        mask = mask if include_rows else ~mask
-        out_df = df1.loc[mask].copy()
-
-        # return a new MethodComparator with filtered rows
+    def only_when_cond(self, condition: str, filtering_cols=None, non_filtered_vars=None):
+        warnings.warn("MethodComparator.only_when_cond is deprecated. Use clinstudtools.transforms.filter_by_condition.", DeprecationWarning, stacklevel=2)
+        needed_cases = filter_by_condition(self.df, condition)
+        out_df = filter_by_reference(self.df, needed_cases, filtering_cols, include_rows=True)
         return MethodComparator(out_df, self.measurement_col)
 
 
-    def only_when_cond(self,
-                       condition: str,
-                       filtering_cols: Optional[Union[str, List[str]]] = ['Site', 'SampleID', 'Investigator', 'Method'],
-                       non_filtered_vars: Optional[Union[str, List[str]]] = None):
+    def filter_by_unclass(self, unclass='Unclassified WBC', threshold=10, filtering_cols=None):
         """
-        Create a new MethodComparator with only samples/cases for which condition (on specific variables) is true.
-        condition - expression from the type passed to DataFrame.query
-        filtering_cols - defining 'case' as combination of columns' values
-        non_filtered_vars - variables (from Variable column) for which results will be kept even for excluded cases.
-            # need to add non_filtered_vars functionality in future
+        Create a new MethodComparator with only cases for which unclass < threshold.
         """
-        try:
-            # get cases for which condition applies
-            needed_cases = self.apply_to_df(function='query', expr=condition, inplace=False)
-        except (SyntaxError, ValueError) as e:
-            raise ValueError(f"\033[91mQuery expression {condition} raised error: {e}") from e
-            print(f'\033[91mInvalid condition string: {e}\033[0m')
-
-        # all rows of original df belonging to wanted samples/cases
-        print(f'\033[34m{len(needed_cases.df)} fill condition: {condition}\033[0m')
-        out_mc = self.filter_by_df(filtering_source=needed_cases.df, filtering_cols=filtering_cols, include_rows=True)
-
-        # return a new MethodComparator with filtered rows
-        return out_mc
-
-
-    def filter_by_unclass(self, unclass='Unclassified WBC', threshold=10,
-                          **kwargs):
-        """
-        Create a new MethodComparator with only cases for which unclass<threshold.
-        unclass : str
-            Variable name (appearing in the 'Variable' column) for which
-        possible kwargs: filtering_cols, non_filtered_vars
-        """
+        warnings.warn(
+            "MethodComparator.filter_by_unclass is deprecated. Perform this filtering "
+            "on the raw DataFrame before instantiating MethodComparator.",
+            DeprecationWarning, stacklevel=2
+        )
         cond = f"Variable == '{unclass}' and Value < {threshold}"
-        return self.only_when_cond(condition=cond)
+        needed_cases = filter_by_condition(self.df, cond)
+        out_df = filter_by_reference(self.df, needed_cases, filtering_cols, include_rows=True)
+        return MethodComparator(out_df, self.measurement_col)
 
 
     def apply_to_df(self, function: str, *args, inplace=False, **kwargs):
@@ -435,46 +346,6 @@ class MethodComparator:
 
         return wide[level].to_numpy()
 
-    # def _col_from_ids(self, ids, mthd, variable, column):
-    #     """
-    #     Return array of another column's values (e.g. boolean flags) for matched IDs.
-    #
-    #     Parameters
-    #     ----------
-    #     df : pd.DataFrame
-    #         Original long-format DataFrame.
-    #     ids : list of (SampleID, Site)  # need to add option Reviewer in ids
-    #         IDs from _prepare_arrays.
-    #     mthd : str
-    #         The method name to extract column for.
-    #     variable: str
-    #         The variable used in _prepare_arrays.
-    #     column : str
-    #         Column whose values to retrieve (e.g. 'Positive').
-    #
-    #     Returns
-    #     -------
-    #     rtrn_col : np.ndarray
-    #     """
-    #     # Build a DataFrame of only those ids and methods
-    #     # and keep only the column of interest.
-    #     df = self.df
-    #     ids_with_var = [t + (variable, ) for t in ids]
-    #     sub = df[
-    #         (df["Method"] == mthd) &
-    #         (df.set_index(["SampleID", "Site", "Variable"]).index.isin(ids_with_var))
-    #         ][["SampleID", "Site", "Variable", "Method", column]].copy()
-    #
-    #     # Pivot just like in _prepare_arrays
-    #     wide = sub.pivot(index=["SampleID", "Site", "Variable"],
-    #                      columns="Method",
-    #                      values=column)
-    #
-    #     # Align with order of ids from the original result
-    #     wide = wide.reindex(ids_with_var)
-    #
-    #     return wide[mthd].to_numpy()
-
 
     def _apply_row_filters(
             self,
@@ -503,7 +374,7 @@ class MethodComparator:
             if callable(allowed):
                 df = df[allowed(df[col])]
             else:
-                allowed = _ensure_list(allowed)
+                allowed = ensure_list(allowed)
                 df = df[df[col].isin(allowed)]
         return df
 
@@ -656,6 +527,15 @@ class MethodComparator:
         # To do: add an option for ids to include the site as well
 
         return x, y, ids
+
+    def get_pairwise_data(self, level_a: str, level_b: str, variable: str, dim_col: str = "Method",
+                          on_duplicates: str = "first"):
+        """
+        Public method to safely extract aligned arrays (x, y, ids) for custom external analysis.
+        """
+        return self._prepare_pairwise_arrays(
+            level_a, level_b, variable, dim_col, on_duplicates=on_duplicates
+        )
 
     def confusion_matrix(self,
                          level_a: str,
@@ -821,10 +701,10 @@ class MethodComparator:
         """Run regression across many combinations of methods, variables and sites in one call."""
         # currently ref_methods, test_methods, variables should be lists, consider option to allow strings as well
 
-        ref_methods = _ensure_list(ref_methods)
-        test_methods = _ensure_list(test_methods)
-        variables = _ensure_list(variables)
-        site_filters = _ensure_list(site_filters)
+        ref_methods = ensure_list(ref_methods)
+        test_methods = ensure_list(test_methods)
+        variables = ensure_list(variables)
+        site_filters = ensure_list(site_filters)
 
         for ref, test, var, sites in product(ref_methods, test_methods, variables, site_filters):
             if ref == test:
@@ -888,10 +768,10 @@ class MethodComparator:
 
         # ---- normalize inputs ----
         # if iterated arguments are str or None, convert to list
-        levels_a = _ensure_list(levels_a)
-        levels_b = _ensure_list(levels_b)
-        variables = _ensure_list(variables)
-        split_by = _ensure_list(split_by)
+        levels_a = ensure_list(levels_a)
+        levels_b = ensure_list(levels_b)
+        variables = ensure_list(variables)
+        split_by = ensure_list(split_by)
 
         # ---- base dataframe after row restriction ----
         df_base = self.df
@@ -1077,26 +957,35 @@ class MethodComparator:
 
             mtrcs_strngs = []
             for mtr_name in ['sensitivity', 'specificity', 'agreement']:
-                mtr_dict = mtrcs[mtr_name]
-                if isinstance(mtr_dict, dict):
-                    pnt_est = mtr_dict['value']
-                    if math.isnan((pnt_est)):
+                mtr_val = mtrcs.get(mtr_name, np.nan)
+
+                # Check if metric is the bootstrapped output format: {"value": X, "ci": (L, U)}
+
+                if isinstance(mtr_val, dict):
+                    pnt_est = mtr_val.get('value', np.nan)
+                    if pd.isna(pnt_est):
                         mtrcs_strngs.append("NA")
                     else:
-                        pnt_est = pnt_est * 100
-                        bottom = mtr_dict['ci'][0] * 100
-                        top = mtr_dict['ci'][1] * 100
-                        mtrcs_strngs.append(f"{pnt_est:.1f}\n({bottom:.1f}-{top:.1f})")
-                elif isinstance(mtr_dict, float):
-                    pnt_est = mtr_dict * 100
-                    mtrcs_strngs.append(f"{pnt_est:.1f}")
+                        ci = mtr_val.get('ci', (np.nan, np.nan))
+                        pnt_est_pct = pnt_est * 100
+                        bottom_pct = ci[0] * 100
+                        top_pct = ci[1] * 100
+                        mtrcs_strngs.append(f"{pnt_est_pct:.1f}\n({bottom_pct:.1f}-{top_pct:.1f})")
+
+                # Otherwise, treat it as the standard binary output (scalar)
+                else:
+                    if pd.isna(mtr_val):
+                        mtrcs_strngs.append("NA")
+                    else:
+                        pnt_est_pct = mtr_val * 100
+                        mtrcs_strngs.append(f"{pnt_est_pct:.1f}")
 
             row = self._base_result_row(rec)
             results = {
                 "N": len(rec["x"]),
                 "Sensitivity": mtrcs_strngs[0],
                 "Specificity": mtrcs_strngs[1],
-                "Ageement": mtrcs_strngs[2],
+                "Agreement": mtrcs_strngs[2],
                 "TP": mtrcs["tp"], "TN": mtrcs["tn"], "FN": mtrcs["fn"], "FP": mtrcs["fp"]}
             row.update(results)
             rows.append(row)

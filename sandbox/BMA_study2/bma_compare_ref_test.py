@@ -10,22 +10,7 @@ from pipelines import bma_prep_pipeline
 # trgt_dict = os.path.abspath(r'../../clinstudtools')
 # sys.path.append(trgt_dict)
 # from table_integrity import robust_dup
-
-
-# def bma_df_pipeline(paths: dict, metadata: sb.MetadataBundle, dir=None, measurement_col='Value',
-#                     more_id_vars=None):
-
-
-def removed_for_arbitration(df_raw, df_arb, arbitrator):
-    arbitrators = _ensure_list(arbitrator)
-
-    # check which samples went to arbitration
-    df = pd.merge(df_raw, df_arb, on=['Site', 'SampleID', 'Method'], how='left', indicator=True)
-
-    # keep reviews which were not sent to arbitration and reviewed by regular reviewer, or ones sent to arbitration and reviewed by arbitrator
-    df = df[((df['_merge'] == 'left_only') & ~(df['Investigator'].isin(arbitrators))) | ((df['_merge'] == 'both') & (df['Investigator'].isin(arbitrators)))]
-
-    return df
+from bma_specific_functs import removed_for_arbitration,generate_fda_equivocal_report
 
 
 if __name__ == "__main__":
@@ -47,7 +32,7 @@ if __name__ == "__main__":
 
     exprt_mtrx = False
     exprt_long = False
-    plot_reg = True
+    plot_reg = False
     keep_names = False  # use investigators' full names - creates very wide 'all investigators' comparison matrix if True
     min_inv_site = 2
 
@@ -218,6 +203,25 @@ if __name__ == "__main__":
         if plot_reg:
             methd_comp.plot_all_regressions(f'results/{save_name}_bma_reg.pdf')
 
+        # compare using sensitivity/specificity
+        methd_comp.batch_compare(levels_a='REF', levels_b='TEST', variables=ndc_vars_list, comp_func='binary')
+        methd_comp.batch_compare(levels_a='REF', levels_b='TEST', variables=ndc_vars_list, split_by='Site', comp_func='binary')
+        methd_comp.save_results(rf'results/{save_name}_bin.csv', result_type="binary")
+
+        # FDA Medical Decision Level (MDL) Equivocal Report
+        # Generates the strict and equivocal-adjusted metrics using the
+        # critical points already defined in your metadata config.
+        print("Generating FDA Equivocal Zone MDL Report...")
+        fda_report_df = generate_fda_equivocal_report(
+            methd_comp=methd_comp,
+            decision_dict=metadata.crit_points,
+            level_a='REF',
+            level_b='TEST',
+            dim_col='Method'
+        )
+        fda_report_path = rf'results/{save_name}_FDA_MDL_Equivocal_Report.csv'
+        fda_report_df.to_csv(fda_report_path, index=False)
+        print(f"Exported FDA MDL Equivocal Report to: {fda_report_path}")
 
     # inter-investigator
     if inter:

@@ -11,10 +11,11 @@ from itertools import product
 if __name__ == "__main__":
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
+    cbm_version = 'v319'  # currently v317 or v319
 
     exprt_mtrx = True
     plot_reg = True
-    bin_params = True
+    bin_params = False
 
     remove_cases_by_list = False
     diff500 = False   # only when manual
@@ -47,26 +48,20 @@ if __name__ == "__main__":
     diff500_string = '_500wbc' if diff500 else ''
     good_sites_string = '_only_good_sites' if only_good_sites else ''
 
-    save_name = f'{short_ref_arm}_cbm_{mthd_str}{diff500_string}{good_sites_string}'
+    save_name = f'{short_ref_arm}_cbm_{mthd_str}{diff500_string}{good_sites_string}_{cbm_version}'
     rslts_dir = rf'results/{short_ref_arm}'
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
     raw_dir = os.path.join(cur_dir, r'raw', analysis_name)
 
-    # if remove_cases_by_list:
-    #     rmv_file = 'flt_lists/pre_session_reviews.csv'
-    #     filtering_source = read_to_df(rmv_file, file_dir=os.getcwd())
-    # else:
-    #     filtering_source = None
-
     metadata = MetadataBundle(meta_path)
 
-    cbm_file_name = '6sites_CBM.csv'
+    cbm_file_name = f'all6_RGB_CBM_{cbm_version}.csv'
     cbm_df = medium_pipe(cbm_file_name, None, 'CBM', metadata, dir=r'raw/cbm_method_comparison')
     # gather omr as usual
     srcs = {(site, ref_arm): f'{site}_{ref_arm}.csv' for site in sites}
-    methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison', inv=manual, filtering_source=filtering_source)
+    methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison', inv=manual)
 
     if diff500:
         diff500_file = 'flt_lists/500_WBC_mnl_cases.csv'

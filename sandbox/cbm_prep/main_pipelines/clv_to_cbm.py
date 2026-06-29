@@ -1,28 +1,26 @@
 import os
 import sys
 import pandas as pd
-# import numpy as np
-# import seaborn as sns
-# from scipy.stats import f_oneway
-# from matplotlib.backends.backend_pdf import PdfPages
-# from scipy.stats import spearmanr, kendalltau
-# from statsmodels.miscmodels.ordinal_model import OrderedModel
+
 
 sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\cbm_prep')
 from objects import MethodComparator
-from sandbox import MetadataBundle, read_to_df, add_mean_investigator, add_grade_column, add_pos_column, create_derived_variables_long, write_df_to_file
+from sandbox import add_mean_investigator, create_derived_variables_long, assign_dynamic_roles
 from pipelines import medium_pipe, clv_pipe
-from itertools import *
+
 
 sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
-from clinstudtools import careful_map, safe_pivot, robust_dup, apply_arbitration_override
-
-
+from clinstudtools import careful_map, apply_arbitration_override
+from clinstudtools.core.metadata import MetadataBundle
+from clinstudtools.utils import read_to_df, write_df_to_file
+from clinstudtools.transforms import filter_by_reference, filter_samples_by_condition
+from clinstudtools.preprocessing import add_grade_column, add_pos_column
 
 
 if __name__ == "__main__":
+    cbm_version = 'v319'  # currently v317 or v319
     inter = False
-    comp_with_cbm = False
+    comp_with_cbm = True
     sen_spec = True
 
     min_inv = 2  # False or number
@@ -38,26 +36,55 @@ if __name__ == "__main__":
     rmv_brd no influence for clv (not enough borderline cases reviewed in ClV to make a difference)
     """
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}'
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}_updt_arb_flt_list'
 
     intr_by_pair = False
 
-    exprt_long = False
-    exprt_mtrx = False
-    plot_reg = False
+    exprt_long = True
+    exprt_mtrx = True
+    plot_reg = True
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
-    rbc_agg_params = False  # parameters like Oval+Ellip, Acan+Echin
-    with_morph_spec = True
+    rbc_agg_params = True  # parameters like Oval+Ellip, Acan+Echin
+    with_morph_spec = True   # still need to implement
 
     sites = ['BWH', 'LMU', 'TASMC']
-    inv_map = {'Alina': 'Rev1', 'Alina KÃ¼pper': 'Rev1', 'Christine Lavoie': 'Rev1', 'Ebikebuna Rufus': 'Rev1', 'Sarah Pereira Rodrigues': 'Rev1',
-               'Nikolic Sladana': 'Rev2', 'Sladana': 'Rev2', 'Christopher Wright': 'Rev2', 'Thu Tran': 'Rev2', 'YAEL SAYEGH': 'Rev2', 'Sladana Nikolic': 'Rev2',
-               'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
-    names_map = {'Alina': 'Alina', 'Alina KÃ¼pper': 'Alina', 'Christine Lavoie': 'Christine', 'Ebikebuna Rufus': 'Ebi',
-                 'Sarah Pereira Rodrigues': 'Sarah', 'Nikolic Sladana': 'Sladana', 'Sladana Nikolic': 'Sladana',
-                 'Sladana': 'Sladana', 'Christopher Wright': 'Chris', 'Thu Tran': 'Thu', 'YAEL SAYEGH': 'Yael',
-                 'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
+
+    inv_map = {
+        # Standardize typos/variations
+        'Christopher Wright': 'Chris',
+        'Christine Lavoie': 'Christine',
+        'Chris': 'Chris',
+        'Christine': 'Christine',
+        'Ebikebuna Rufus': 'Ebi',
+        'Ebikebuna Rufus F.': 'Ebi',
+        'Ebikebuna Rufus F': 'Ebi',
+        'Ebi': 'Ebi',
+        'Thu Tran': 'Thu',
+        'THU TRAN': 'Thu',
+        'Thu': 'Thu',
+        'Alina KÃƒÂ¼pper': 'Alina',
+        'Alina': 'Alina',
+        'Sladana Nikolic': 'Sladana',
+        'Nikolic Sladana': 'Sladana',
+        'Sladana': 'Sladana',
+        'Sarah Pereira Rodrigues': 'Sarah',
+        'Sarah': 'Sarah',
+        'YAEL SAYEGH': 'Yael',
+        'Yael Sayegh': 'Yael',
+        'Yael S': 'Yael',
+        'YAEL ASYEGH': 'Yael',
+        'Yael': 'Yael',
+
+        # Explicitly tag Arbitrators
+        'Dr. med. Weigand, Michael': 'Arbitrator',
+        'Dan BENISTY': 'Arbitrator',
+
+        # Preserve system/automated roles
+        'ClV': 'ClV',
+        'Mean Investigator': 'Mean Investigator'}
+
+    names_map = inv_map
     pair_map = {'Alina': 'Alina&Sladana', 'Alina KÃ¼pper': 'Alina&Sladana', 'Christine Lavoie': 'Christine&Chris', 'Ebikebuna Rufus': 'Ebi&Thu', 'Sarah Pereira Rodrigues': 'Sarah&Yael',
                'Sladana': 'Alina&Sladana', 'Christopher Wright': 'Christine&Chris', 'Thu Tran': 'Ebi&Thu', 'YAEL SAYEGH': 'Sarah&Yael', 'Nikolic Sladana': 'Alina&Sladana',
                'CBM': 'CBM', 'Mean Investigator': 'Mean Investigator'}
@@ -76,8 +103,7 @@ if __name__ == "__main__":
     metadata = MetadataBundle(meta_path)
 
     # from previous attempts to quantify PLT morphologies with ClV
-    vars_to_test = metadata.variable_groups.get('RBC morphology', []) + metadata.variable_groups.get('PLT morphology', []) + \
-                   metadata.variable_groups.get('RBC combinations', [])
+    vars_to_test = metadata.variable_groups.get('RBC morphology', []) + metadata.variable_groups.get('RBC combinations', [])
 
 
     vars_to_print = vars_to_test + ['TotalRBC'] + ['TotalPLT']
@@ -88,66 +114,60 @@ if __name__ == "__main__":
     for site in sites:
         # Currently cases with < min_inv investigators still appearing. Will be removed after mtrx_export.
 
-        extra_calcs = True if crf_ssn not in ['pre', 'post'] else False  # in these cases mean investigator and derived variables will be added later
         df = clv_pipe(f'{site}_ClV.csv', site, metadata, dir=r'raw/cbm_method_comparison',
-                      min_inv=min_inv, mean_inv=extra_calcs, drv_vars=extra_calcs, only_mean=False)
+                      min_inv=min_inv, mean_inv=False, drv_vars=False, only_mean=False)
         df_srcs_list.append(df)
 
-    # converting clv results into MethodComparator to use filter_by_df - will not be necessary once MethodComparator is split into multiple objects
-    df_clv = pd.concat(df_srcs_list)
-    mthd_comp_clv = MethodComparator(df_clv)
+    df = pd.concat(df_srcs_list)
+
     if crf_ssn in ['pre', 'post']:
-        pre_ssn_file = r'flt_lists/pre_session_reviews.csv'
         keep_pre = (crf_ssn == 'pre')
-        methd_comp_flt = mthd_comp_clv.filter_by_df(pre_ssn_file, include_rows=keep_pre)
-        df_clv_flt = methd_comp_flt.df.copy()
+        df = filter_by_reference(df, r'flt_lists/pre_session_reviews.csv', include_rows=keep_pre)
 
-        # requires calculating mean_inv again (as mean_inv were dropped when only pre-session were kept)
-        df = add_mean_investigator(df_clv_flt, mthd=ref_arm, min_inv=min_inv)
-        df = add_grade_column(df, metadata)
-        df = add_pos_column(df, metadata)
-        df = df.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
-        df = create_derived_variables_long(df, metadata)
+    # Standardize names and tag the Arbitrator
+    df['Investigator'] = careful_map(df['Investigator'], inv_map)
+    # Isolate the Arbitrator
+    arb_mask = df['Investigator'] == 'Arbitrator'
+    arb_df = df[arb_mask].copy()
+    regular_df = df[~arb_mask].copy()
 
-        df_srcs_list = []
-        df_srcs_list.append(df)
+    # Dynamically assign roles (Rev1, Rev2, etc.) ONLY to regular reviewers
+    regular_df = assign_dynamic_roles(regular_df, group_cols=['Site', 'SampleID'])
+    regular_df = add_mean_investigator(regular_df, mthd=ref_arm, min_inv=min_inv)
+    df = pd.concat([regular_df, arb_df], ignore_index=True)
 
-    df = medium_pipe(f'6sites_CBM.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
-                     id_vars=id_vars_cbm)
-    df["Investigator"] = test_arm
-    df_srcs_list.append(df)
-    all_dfs = pd.concat(df_srcs_list)
+    # Load arbitration rules (which samples/variables to override) and apply Quantitative Override (Overwrites 'Mean Investigator')
+    arb_rules = read_to_df('flt_lists/for_arbitration-including-candidates.csv', file_dir=os.getcwd())
+    df_clv = apply_arbitration_override(df, arb_df, arb_rules, metadata)
 
-    methd_comp = MethodComparator(all_dfs)
+    df_clv = add_grade_column(df_clv, metadata)
+    df_clv = add_pos_column(df_clv, metadata)
+    df_clv = df_clv.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
+    df_clv = create_derived_variables_long(df_clv, metadata)
 
-    rmv_file = r'flt_lists/low_quality.csv'
-    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-    methd_comp = methd_comp.filter_by_df(rmv_df)
+    df_cbm = medium_pipe(f'all6_RGB_CBM_{cbm_version}.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
+                     id_vars=id_vars_cbm, check_wbc_diff=False)
+    df_cbm = add_grade_column(df_cbm, metadata)
+    df_cbm = add_pos_column(df_cbm, metadata)
+    df_cbm = df_cbm.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
+    df_cbm = create_derived_variables_long(df_cbm, metadata)
+    df_cbm["Investigator"] = test_arm
+    df_cbm["Original_Investigator"] = test_arm
+    all_dfs = pd.concat([df_clv, df_cbm])
 
-    # rmv_file = r'flt_lists/wrong_analysis_area.csv'
-    # rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-    # methd_comp = methd_comp.filter_by_df(rmv_df)
 
+    df = filter_by_reference(all_dfs, r'flt_lists/low_quality.csv')
 
-
-
-    # remove for arbitration only the morphologies in the arbitration categories
-    arb_categories = {morph: ctgr for ctgr in ['RBC inclusions', 'RBC shape', 'RBC color'] for morph in metadata.variable_groups[ctgr]}
-    methd_comp.df['Arbitration Category'] = methd_comp.df['Variable'].map(arb_categories)
-    rmv_file = r'flt_lists/for_arbitration.csv'
-    rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-    methd_comp = methd_comp.filter_by_df(rmv_df)
+    # df = filter_by_reference(df, r'flt_lists/wrong_analysis_area.csv')
 
     if rmv_brd:
-        rmv_file = r'flt_lists/slides_to_remove_borderline.csv'
-        rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-        methd_comp = methd_comp.filter_by_df(rmv_df)
+        df = filter_by_reference(df, r'flt_lists/slides_to_remove_borderline.csv')
 
     if no_scrtch:
-        rmv_file = r'flt_lists/scratched.csv'
-        rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
-        methd_comp = methd_comp.filter_by_df(rmv_df)
+        df = filter_by_reference(df, r'flt_lists/scratched.csv')
 
+
+    methd_comp = MethodComparator(df)
 
     if exprt_long:
         arb_vars = metadata.variable_groups['RBC inclusions'] + metadata.variable_groups['RBC shape'] + metadata.variable_groups['RBC color']
@@ -163,7 +183,7 @@ if __name__ == "__main__":
         intr_df = methd_comp.only_when_cond(f"Investigator!='Mean Investigator' and Method=='{ref_arm}'").df.copy()
         if intr_by_pair:
             intr_df['Site'] = careful_map(intr_df['Investigator'], pair_map)
-        intr_df['Investigator'] = careful_map(intr_df['Investigator'], inv_map)
+        # intr_df['Investigator'] = careful_map(intr_df['Investigator'], inv_map)
         intr_df['Method'] = intr_df['Investigator']
         inter_comp = MethodComparator(intr_df)
         if exprt_mtrx:
@@ -171,7 +191,8 @@ if __name__ == "__main__":
             inter_comp.export_comparison_matrix(out_path=fr'comp_tables/{int_save_name}.csv',
                                                 row_identifiers=["Site", "SampleID"],
                                                 comparison_dims=("Variable", "Method"),
-                                                needed_vals=vars_to_print)
+                                                needed_vals=vars_to_print,
+                                                row_completeness='any')
 
         inter_comp.batch_fit('Rev1', 'Rev2', vars_to_test)
         by_list = pairs if intr_by_pair else sites
@@ -183,16 +204,18 @@ if __name__ == "__main__":
 
 
 
+
     # --- comparison for each reviewer separately
     if by_rev_comp:
         methd_comp_by_rev = methd_comp.apply_to_df('query', f"Investigator!='Mean Investigator'", inplace=False)
-        methd_comp_by_rev.df['Investigator'] = careful_map(methd_comp_by_rev.df['Investigator'], names_map)
-        for rev in methd_comp_by_rev.df['Investigator'].unique():
-            rev_row_filt = {"Investigator": [rev, test_arm]}
-            methd_comp_by_rev.batch_compare(levels_a=ref_arm, levels_b=test_arm, variables=vars_to_test, row_filters=rev_row_filt)
+        for rev in methd_comp_by_rev.df['Original_Investigator'].unique():
+            if rev != test_arm and rev == rev:
+                rev_row_filt = {"Original_Investigator": [rev, test_arm]}
+                methd_comp_by_rev.batch_compare(levels_a=ref_arm, levels_b=test_arm, variables=vars_to_test,
+                                                row_filters=rev_row_filt)
         methd_comp_by_rev.save_results(rf'results/clv/{save_name}_by_rev_reg.csv')
-        if plot_reg:
-            methd_comp_by_rev.plot_all_regressions(f'results/clv/{save_name}_by_rev_reg.pdf')
+        # if plot_reg:
+        #     methd_comp_by_rev.plot_all_regressions(f'results/clv/{save_name}_by_rev_reg.pdf')
 
 
     if sen_spec:
