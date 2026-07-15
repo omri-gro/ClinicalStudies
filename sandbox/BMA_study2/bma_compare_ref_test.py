@@ -10,8 +10,9 @@ from pipelines import bma_prep_pipeline
 # trgt_dict = os.path.abspath(r'../../clinstudtools')
 # sys.path.append(trgt_dict)
 # from table_integrity import robust_dup
-from bma_specific_functs import removed_for_arbitration,generate_fda_equivocal_report
+from bma_specific_functs import removed_for_arbitration, generate_fda_equivocal_report, generate_fda_equivocal_report_bins
 
+from stats_sandbox import export_concordance_matrices
 
 if __name__ == "__main__":
     """ currently added change where arbitrator is counted as just another investigator for calculation of mean 
@@ -26,7 +27,7 @@ if __name__ == "__main__":
     compare_methods = True
     raw_dss = False
     inter = False
-    inter_to_include_arbitrated = True  # also means that reviews which were replaced by arbitration will not appear in comp_mtrx
+    inter_to_include_arbitrated = False  # also means that reviews which were replaced by arbitration will not appear in comp_mtrx
 
     # comp_mk_rois = True
 
@@ -194,6 +195,8 @@ if __name__ == "__main__":
 
     # main method comparison regressions + biases
     if compare_methods:
+
+        """
         methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list)
         # if not only_merged:
         #     methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list, site_filters=sites)
@@ -207,7 +210,10 @@ if __name__ == "__main__":
         methd_comp.batch_compare(levels_a='REF', levels_b='TEST', variables=ndc_vars_list, comp_func='binary')
         methd_comp.batch_compare(levels_a='REF', levels_b='TEST', variables=ndc_vars_list, split_by='Site', comp_func='binary')
         methd_comp.save_results(rf'results/{save_name}_bin.csv', result_type="binary")
+        """
 
+
+    """
         # FDA Medical Decision Level (MDL) Equivocal Report
         # Generates the strict and equivocal-adjusted metrics using the
         # critical points already defined in your metadata config.
@@ -222,6 +228,55 @@ if __name__ == "__main__":
         fda_report_path = rf'results/{save_name}_FDA_MDL_Equivocal_Report.csv'
         fda_report_df.to_csv(fda_report_path, index=False)
         print(f"Exported FDA MDL Equivocal Report to: {fda_report_path}")
+    """
+
+    # FDA Medical Decision Level (MDL) Equivocal Report
+    # Generates the strict and equivocal-adjusted metrics using newly defined bins (with central bins this time)
+
+    # Format: (lower_val, upper_val, lower_inclusive, upper_inclusive, label)
+    fda_clinical_bins = {
+        'Blast': [
+            (0.0, 0.5, True, False, "Decreased (<0.5%)"),
+            (0.5, 5.0, True, True, "Normal (0.5-5%)"),
+            (5.0, 20.0, False, True, "Increased (5%-20%)"),
+            (20.0, 100.0, False, True, "Increased (>20%)")
+        ],
+        'Plasma cell': [
+            (0.0, 3.0, True, True, "Normal (<=3%)"),
+            (3.0, 10.0, False, True, "Increased (3%-10%)"),
+            (10.0, 60.0, False, True, "Increased (10%-60%)"),
+            (60.0, 100.0, False, True, "Increased (>60%)")
+        ],
+        'Basophil': [
+            (0.0, 1.0, True, True, "Normal (<=1%)"),
+            (1.0, 100.0, False, True, "Increased (>1%)")
+        ],
+        'Mast cell': [
+            (0.0, 1.0, True, True, "Normal (<=1%)"),
+            (1.0, 100.0, False, True, "Increased (>1%)")
+        ],
+    }
+
+    print("Exporting square Concordance Matrices...")
+    export_concordance_matrices(
+        methd_comp=methd_comp,
+        decision_dict=fda_clinical_bins,
+        save_prefix=save_name,
+        level_a='REF',
+        level_b='TEST',
+        dim_col='Method'
+    )
+
+    fda_report_df = generate_fda_equivocal_report_bins(
+        methd_comp=methd_comp,
+        decision_dict=fda_clinical_bins,
+        level_a='REF',
+        level_b='TEST',
+        dim_col='Method'
+    )
+    fda_report_path = rf'results/{save_name}_FDA_MDL_Equivocal_Report_Bins.csv'
+    fda_report_df.to_csv(fda_report_path, index=False)
+
 
     # inter-investigator
     if inter:
@@ -277,7 +332,8 @@ if __name__ == "__main__":
         'Monocyte',
         'Eosinophil',
         'Basophil',
-        'Mast cell'
+        'Mast cell',
+        'BlastPromyelo'
     ]
 
     fig_titles = {
@@ -304,6 +360,7 @@ if __name__ == "__main__":
         'Eosinophil': 'Eosinophil',
         'Basophil': 'Basophil',
         'Mast cell': 'Mast cell',
+        'BlastPromyelo': 'Blast+Promyelocyte',
         'Megakaryocytes': 'Megakaryocytes Count'
     }
 
@@ -331,6 +388,7 @@ if __name__ == "__main__":
         'Eosinophil': 'Eosinophil',
         'Basophil': 'Basophil',
         'Mast cell': 'Mast cell',
+        'BlastPromyelo': 'Blast+Promyelocyte',
         'Megakaryocytes': 'Megakaryocytes Count [MK / 10X FOV]'
     }
 

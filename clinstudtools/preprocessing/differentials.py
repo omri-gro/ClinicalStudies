@@ -65,7 +65,7 @@ def calc_diff(df, metadata, diff_cells="WBC diff", total_var="Total WBC", additi
         return df_orig
 
     # Calculate total WBC count (sum of diff cells)
-    df[total_var] = df[diff_vars].sum(axis=1, skipna=True)
+    df[total_var] = df[diff_vars].sum(axis=1, skipna=True, min_count=1)
 
     # Replace diff cells with percentages
     multiplier = 100 if to_100 else 1

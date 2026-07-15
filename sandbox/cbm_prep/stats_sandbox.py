@@ -155,17 +155,29 @@ def binary_classification_metrics_bootstrap(
 # functions related to "Borderline / Equivalence Zone" Analysis (statistical artifacts on sensitivity/specificity based on Poisson noise - added due to FDA request
 def check_borderline_equivalence(ref_pct, test_pct, total_cells=500, alpha=0.01):
     """
-    Determines if the test percentage falls within the exact Clopper-Pearson CI of the reference.
-    Useful for defining Equivocal Zones in cell counting studies.
-    Uses memoization to avoid redundant, slow Beta distribution calculations.
+    Determines if the test percentage falls within the Wald Normal Approximation
+    99% CI of the reference percentage, directly matching Protocol Table 5.
     """
     if pd.isna(ref_pct) or pd.isna(test_pct):
         return False
 
-    ref_count = round((ref_pct / 100) * total_cells)
-    lower_prop, upper_prop = proportion_confint(ref_count, total_cells, alpha=alpha, method='beta')
+    # Convert percentage to proportion
+    p = ref_pct / 100.0
 
-    return (test_pct >= lower_prop * 100) and (test_pct <= upper_prop * 100)
+    # Calculate Z-score based on alpha (alpha=0.01 gives z ≈ 2.576)
+    # 1 - (0.01 / 2) = 0.995 upper tail
+    from scipy.stats import norm
+    z = norm.ppf(1 - alpha / 2)
+
+    # Standard Wald standard error for a single proportion
+    standard_error = np.sqrt((p * (1 - p)) / total_cells)
+
+    # Compute boundary percentages
+    lower_pct = (p - z * standard_error) * 100
+    upper_pct = (p + z * standard_error) * 100
+
+    # Evaluate if test result sits inside the operational noise floor
+    return (test_pct >= lower_pct) and (test_pct <= upper_pct)
 
 
 def get_equivocal_zone_masks(y_true_cont, y_pred_cont, cutoff, total_cells=500, alpha=0.01):
@@ -190,6 +202,100 @@ def get_equivocal_zone_masks(y_true_cont, y_pred_cont, cutoff, total_cells=500, 
                 exclude_mask[i] = True
 
     return y_true_bin, y_pred_bin, exclude_mask
+
+
+def get_interval_bin_masks(y_true_cont, y_pred_cont, lower_cutoff, upper_cutoff,
+                           lower_inc, upper_inc, total_cells=500, alpha=0.01):
+    """
+    Binarizes continuous arrays based on strict mathematical interval boundaries
+    and flags equivocal zone cases falling within counting noise.
+    """
+    y_true_cont = np.asarray(y_true_cont)
+    y_pred_cont = np.asarray(y_pred_cont)
+
+    # 1. Evaluate Lower Boundary Condition
+    ref_lower = (y_true_cont >= lower_cutoff) if lower_inc else (y_true_cont > lower_cutoff)
+    pred_lower = (y_pred_cont >= lower_cutoff) if lower_inc else (y_pred_cont > lower_cutoff)
+
+    # 2. Evaluate Upper Boundary Condition
+    ref_upper = (y_true_cont <= upper_cutoff) if upper_inc else (y_true_cont < upper_cutoff)
+    pred_upper = (y_pred_cont <= upper_cutoff) if upper_inc else (y_pred_cont < upper_cutoff)
+
+    # Combined condition: sample is Positive if it satisfies both boundaries
+    y_true_bin = (ref_lower & ref_upper).astype(int)
+    y_pred_bin = (pred_lower & pred_upper).astype(int)
+
+    # 3. Isolate Borderline Equivocal Cases
+    exclude_mask = np.zeros(len(y_true_cont), dtype=bool)
+    for i in range(len(y_true_cont)):
+        if y_true_bin[i] != y_pred_bin[i]:
+            if check_borderline_equivalence(y_true_cont[i], y_pred_cont[i], total_cells, alpha):
+                exclude_mask[i] = True
+
+    return y_true_bin, y_pred_bin, exclude_mask
+
+
+# creation of contingency tables where conversion to bins is required
+def calculate_multiclass_matrix(x, y, bins):
+    """
+    Maps continuous paired arrays to their respective multi-step clinical bins
+    and returns a clean, structured square concordance DataFrame table.
+    """
+    # Extract the ordered bin labels to ensure rows/columns stay in order
+    labels = [b[4] for b in bins]
+
+    def get_bin_label(val):
+        if pd.isna(val):
+            return "Missing"
+        for lower, upper, lower_inc, upper_inc, label in bins:
+            match_lower = (val >= lower) if lower_inc else (val > lower)
+            match_upper = (val <= upper) if upper_inc else (val < upper)
+            if match_lower and match_upper:
+                return label
+        return "Unassigned"
+
+    ref_labels = [get_bin_label(v) for v in x]
+    test_labels = [get_bin_label(v) for v in y]
+
+    # Generate the crosstab matrix layout
+    matrix = pd.crosstab(
+        pd.Series(ref_labels, name="Ref \\ Test"),
+        pd.Series(test_labels)
+    )
+
+    # Reindex forces the matrix to be perfectly square (e.g., 4x4),
+    # filling unobserved boundary matchups with 0 counts.
+    matrix = matrix.reindex(index=labels, columns=labels, fill_value=0)
+    return matrix
+
+# exporter for results of calculate_multiclass_matrix
+def export_concordance_matrices(methd_comp, decision_dict, save_prefix, level_a='REF', level_b='TEST', dim_col='Method'):
+    """
+    Study-specific script tool that loops through clinical bins to calculate
+    and save  shaped multi-class matrix CSV tables.
+    """
+    for variable, bins in decision_dict.items():
+        if not bins:
+            continue
+
+        try:
+            # Safely extract matched data using the public API method
+            x, y, ids = methd_comp.get_pairwise_data(level_a, level_b, variable, dim_col)
+
+            # Generate the square matrix
+            matrix_df = calculate_multiclass_matrix(x, y, bins)
+
+            # Resetting the index leaves the matrix shape intact while pushing the
+            # row headers into the actual CSV cells for clean spreadsheet viewing
+            matrix_df = matrix_df.reset_index()
+
+            # Save out as an individual clean file
+            out_path = rf'results/{save_prefix}_{variable}_concordance_matrix.csv'  # needs to separate path from this function later
+            matrix_df.to_csv(out_path, index=False)
+            print(f"Exported square {len(bins)}x{len(bins)} matrix for {variable} to: {out_path}")
+
+        except Exception as e:
+            print(f"Skipping concordance matrix for {variable}: {e}")
 
 
 # might not be used anywhere, in which case can be deleted as replaced by get_equivocal_zone_masks

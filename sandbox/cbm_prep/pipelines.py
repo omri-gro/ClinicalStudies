@@ -55,9 +55,15 @@ def mean_manual_pipe(path, site, metadata, method="manual",
 
 
 """ Old pipeline functions - kept for compatibility"""
-def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"], check_wbc_diff=True):
+def short_pipe(df, metadata, id_vars=["SampleID", "Site", "Method", "FileName"], check_wbc_diff=True, pre_cond=None):
     # standardize column names
     df = stnd_names(df, metadata.alias_map)
+
+
+    # conditions for filtering raw data table before analysis - should be string for query
+    if pre_cond:
+        df = df.query(pre_cond)
+
 
     # print warning if WBCs in differential don't add up to ~100
     # need to reach decision if this should be df = check_diff_sum instead when organizing functions

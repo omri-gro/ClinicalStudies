@@ -21,17 +21,18 @@ if __name__ == "__main__":
     ref_arm = 'manual'
     cbm_version = 'v319'  # currently v317 or v319
 
-    bin_params = True
+    bin_params = False
     inter = False
 
-    exprt_long = True
-    exprt_mtrx = True
+    exprt_long = False
+    exprt_mtrx = False
     plot_reg = True
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
     max_unclass = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
-    min_wbc = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
+    min_wbc_mnl = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
+    min_wbc_cbm = 200  # number or False
     diff500 = False
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False
@@ -42,8 +43,10 @@ if __name__ == "__main__":
     no_arb_cands = False    # currently not in use - for checking arbitration request for additional slides
 
     max_unclassstr = f'_maxuncls{max_unclass}' if max_unclass else ''
-    min_wbcstr = f'_minwbc{min_wbc}' if min_wbc else ''
+    min_wbcmnlstr = f'_minmnlwbc{min_wbc_mnl}' if min_wbc_mnl else ''
+    min_wbccbmstr = f'_mincbmwbc{min_wbc_cbm}' if min_wbc_cbm else ''
     rmv_brdstr = '_bdrrmv' if rmv_brd else ''
+    min_inv_str = f'_mininv{min_inv}' if min_inv else ''
     diff500str = '_diff500' if diff500 else ''
     scnd_ssn_str = '_aftr2ndssn' if aftr_2nd_ssn else ''
     cbm_thres_str = '_cbm_thres' if cbm_thresholding else ''
@@ -51,7 +54,12 @@ if __name__ == "__main__":
     cbm_version_str = f'_{cbm_version}' if cbm_version else ''
     no_cpg_str = '_no_CPG' if no_cpg else ''
     no_arb_cands_str = '_NoArbCands' if no_arb_cands else ''
-    save_name = f'mnl_{max_unclassstr}{min_wbcstr}{rmv_brdstr}_mininv{min_inv}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{suffix}'
+    save_name = f'mnl_{max_unclassstr}{min_wbcmnlstr}{min_wbccbmstr}{rmv_brdstr}{min_inv_str}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{suffix}'
+
+
+    # string for filtering raw CBM file (more can be added later)
+    raw_cbm_cond = f"`Total WBC`>={min_wbc_cbm}" if min_wbc_cbm else None
+
 
     cur_dir = os.path.abspath(os.path.dirname(__file__))
     os.chdir(os.path.join(cur_dir, ".."))
@@ -125,8 +133,8 @@ if __name__ == "__main__":
         df['Value'] = pd.to_numeric(df['Value'], errors='coerce')
         df = filter_samples_by_condition(df, f"Variable == 'Unclassified WBC' and Value < {max_unclass}")
 
-    if min_wbc:
-        df = filter_samples_by_condition(df, f"Variable == 'Total WBC' and Value >= {min_wbc}")
+    if min_wbc_mnl:
+        df = filter_samples_by_condition(df, f"Variable == 'Total WBC' and Value >= {min_wbc_mnl}")
 
     if diff500:
         # ONLY filter for these samples for Aberrant Lymphocyte and Plasma Cell.
@@ -186,7 +194,7 @@ if __name__ == "__main__":
 
 
     cbm_file_name = f'all6_RGB_CBM_{cbm_version}.csv'
-    cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison')
+    cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison', pre_cond=raw_cbm_cond)
 
     cbm_df['Investigator'] = test_arm
     cbm_df["Original_Investigator"] = test_arm
@@ -278,7 +286,7 @@ if __name__ == "__main__":
             needed_vals=vals_to_print,
             needed_grades=['ScanID'])
 
-        if min_wbc is False:
+        if min_wbc_mnl is False:
             methd_comp.export_comparison_matrix(
                 out_path=fr'comp_tables/{save_name}_grades_all_inv.csv',
                 row_identifiers=["Site", "SampleID"],

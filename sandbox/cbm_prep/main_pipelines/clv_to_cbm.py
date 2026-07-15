@@ -36,7 +36,7 @@ if __name__ == "__main__":
     rmv_brd no influence for clv (not enough borderline cases reviewed in ClV to make a difference)
     """
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}_updt_arb_flt_list'
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}'
 
     intr_by_pair = False
 
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     df = pd.concat([regular_df, arb_df], ignore_index=True)
 
     # Load arbitration rules (which samples/variables to override) and apply Quantitative Override (Overwrites 'Mean Investigator')
-    arb_rules = read_to_df('flt_lists/for_arbitration-including-candidates.csv', file_dir=os.getcwd())
+    arb_rules = read_to_df('flt_lists/for_arbitration.csv', file_dir=os.getcwd())
     df_clv = apply_arbitration_override(df, arb_df, arb_rules, metadata)
 
     df_clv = add_grade_column(df_clv, metadata)
