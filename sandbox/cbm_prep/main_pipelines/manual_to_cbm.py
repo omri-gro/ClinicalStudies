@@ -19,13 +19,13 @@ if __name__ == "__main__":
     meta_path = r'config.yaml'
     test_arm = 'CBM'
     ref_arm = 'manual'
-    cbm_version = 'v319'  # currently v317 or v319
+    cbm_version = 'v325'  # v317 / v319 / v325
 
-    bin_params = False
-    inter = False
+    bin_params = True
+    inter = True
 
-    exprt_long = False
-    exprt_mtrx = False
+    exprt_long = True
+    exprt_mtrx = True
     plot_reg = True
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False
     cbm_thresholding = False  # if True than CBM<1% changes to 0 for hairy cells, LGL and atypical
-    after_last_ssn = True  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
+    after_last_ssn = False  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
     no_cpg = False
     by_inv = False
     no_arb_cands = False    # currently not in use - for checking arbitration request for additional slides

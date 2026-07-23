@@ -11,7 +11,7 @@ from itertools import product
 if __name__ == "__main__":
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
-    cbm_version = 'v319'  # currently v317 or v319
+    cbm_version = 'v325'  # v317 / v319 / v325
 
     exprt_mtrx = True
     plot_reg = True

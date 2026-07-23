@@ -196,7 +196,7 @@ if __name__ == "__main__":
     # main method comparison regressions + biases
     if compare_methods:
 
-        """
+
         methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list)
         # if not only_merged:
         #     methd_comp.batch_fit(['REF'], ['TEST'], ndc_vars_list, site_filters=sites)
@@ -210,10 +210,10 @@ if __name__ == "__main__":
         methd_comp.batch_compare(levels_a='REF', levels_b='TEST', variables=ndc_vars_list, comp_func='binary')
         methd_comp.batch_compare(levels_a='REF', levels_b='TEST', variables=ndc_vars_list, split_by='Site', comp_func='binary')
         methd_comp.save_results(rf'results/{save_name}_bin.csv', result_type="binary")
-        """
 
 
-    """
+
+
         # FDA Medical Decision Level (MDL) Equivocal Report
         # Generates the strict and equivocal-adjusted metrics using the
         # critical points already defined in your metadata config.
@@ -228,7 +228,7 @@ if __name__ == "__main__":
         fda_report_path = rf'results/{save_name}_FDA_MDL_Equivocal_Report.csv'
         fda_report_df.to_csv(fda_report_path, index=False)
         print(f"Exported FDA MDL Equivocal Report to: {fda_report_path}")
-    """
+
 
     # FDA Medical Decision Level (MDL) Equivocal Report
     # Generates the strict and equivocal-adjusted metrics using newly defined bins (with central bins this time)
@@ -242,8 +242,10 @@ if __name__ == "__main__":
             (20.0, 100.0, False, True, "Increased (>20%)")
         ],
         'Plasma cell': [
-            (0.0, 3.0, True, True, "Normal (<=3%)"),
-            (3.0, 10.0, False, True, "Increased (3%-10%)"),
+            # (0.0, 3.0, True, True, "Normal (<=3%)"),
+            # (3.0, 10.0, False, True, "Increased (3%-10%)"),
+            (0.0, 5.0, True, True, "Normal (<=5%)"),
+            (5.0, 10.0, False, True, "Increased (5%-10%)"),
             (10.0, 60.0, False, True, "Increased (10%-60%)"),
             (60.0, 100.0, False, True, "Increased (>60%)")
         ],

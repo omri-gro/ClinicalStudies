@@ -16,6 +16,9 @@ TINY_MARGIN = 10.0  # Pixels for duplicate reviewer click deduplication
 EXTENDED_ROI_PIXELS = 15.0  # Pixels to extend the ROI boundary for FN detection
 
 MODEL_VERSION = "pbs-v3.24"
+SCAN_RESULTS_PATH = r"S:\talm\cbm_clinical_trial\Final_Run\RGB\pbs-3.25\json_structured"  # Directory containing the scan_id.json files
+BBOX_FROM_JSON = True
+USE_CACHED_FULL_SCAN = True  # Toggle to False to force re-parsing of JSONs
 
 # If a class is not in this dict, script will use the Reviewer label for both.
 MORPHOLOGY_ALIASES = {
@@ -32,6 +35,24 @@ MACROCYTE_EXCLUSIONS = {
     "Teardrop", "Schistocytes", "Poikilocyte", "Elliptocyte"
 }
 MICROCYTE_EXCLUSIONS = MACROCYTE_EXCLUSIONS.union({"Stomatocyte"})
+
+# Translates the JSON keys to standard names so exclusions trigger correctly
+JSON_TO_STD_MORPH = {
+    "sickle": "Sickle",
+    "bite": "Bite",
+    "blister": "Blister",
+    "spherocytes": "Spherocyte",
+    "spur": "Acanthocyte",
+    "acanthocytes": "Acanthocyte",
+    "tear_drop": "Teardrop",
+    "schistocytes": "Schistocyte",
+    "poikilocytes": "Poikilocyte",
+    "elliptocytes": "Elliptocyte",
+    "stomatocytes": "Stomatocyte",
+    "helmet": "Helmet",
+    "burr": "Echinocyte"
+}
+
 
 # ==========================================
 # 2. Data Loading
@@ -102,6 +123,42 @@ def load_blobs(directory_path, bucket=None):
     return blobs_df
 
 
+def load_scan_json_blobs(json_path, base_class):
+    """Extracts base_class detections from the local scan_id.json into a compatible DataFrame."""
+    if not os.path.exists(json_path):
+        print(f"\033[31mNo {json_path} file!\033[0m")
+        return pd.DataFrame(), None
+
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+
+    # Convert um to mm to match calculate_size_based_morphologies logic
+    res_mm_pix = data.get("um_per_pixel", 0.1659) / 1000.0
+
+    rows = []
+    for d in data.get("detections", []):
+        cls_info = d.get("classification") or {}
+        if cls_info.get("name", "").upper() == base_class.upper():
+            bounds = d.get("bounds", {})
+            x = bounds.get("x", 0)
+            y = bounds.get("y", 0)
+            w = bounds.get("width", 0)
+            h = bounds.get("height", 0)
+
+            morphs = d.get("morphologies")
+            if morphs:
+                # Map internal lowercase json keys to standard names
+                base_morph_list = [JSON_TO_STD_MORPH.get(k, k) for k in morphs.keys()]
+            else:
+                base_morph_list = []
+
+            rows.append({
+                "bounding_box": f"[{x}, {y}, {w}, {h}]",
+                "base_morph_list": base_morph_list
+            })
+    return pd.DataFrame(rows), res_mm_pix
+
+
 # ==========================================
 # 3. Geometry & Logic Helpers
 # ==========================================
@@ -118,6 +175,23 @@ def get_blobs_in_roi(blobs_df, roi_series, expand_by=0):
             (blobs_df['center_y'] >= y_min) & (blobs_df['center_y'] <= y_max)
     )
     return blobs_df[mask].copy()
+
+
+def check_roi_intersection(roi1, roi2):
+    """Checks if two ROIs overlap geometrically."""
+    if roi1 is None or roi2 is None:
+        return False
+
+    left1, right1 = roi1['x'], roi1['x'] + roi1['w']
+    top1, bottom1 = roi1['y'], roi1['y'] + roi1['h']
+
+    left2, right2 = roi2['x'], roi2['x'] + roi2['w']
+    top2, bottom2 = roi2['y'], roi2['y'] + roi2['h']
+
+    # If one rectangle is on left side of other, or above other, they don't intersect
+    if right1 <= left2 or left1 >= right2 or bottom1 <= top2 or top1 >= bottom2:
+        return False
+    return True
 
 
 def safe_eval_morphologies(morph_series):
@@ -195,12 +269,16 @@ def deduplicate_reviewer_blobs(rev_blobs, tiny_margin):
     return rev_blobs.iloc[keep_indices], dropped_count
 
 
-def calculate_confusion_metrics(rev_blobs, ai_blobs_ext, target_morph, margin):
+def calculate_confusion_metrics(rev_blobs, ai_blobs_ext, target_morphs, margin):
     """Matches reviewer marks with AI blobs to calculate confusion metrics."""
+    # Ensure target_morphs is always a list for consistent iteration
+    if isinstance(target_morphs, str):
+        target_morphs = [target_morphs]
+
     metrics = {'TPs': 0, 'FPs': 0, 'FNs': 0, 'empty_blobs': 0}
 
     if rev_blobs.empty:
-        metrics['FNs'] = sum([target_morph in m for m in ai_blobs_ext['ai_morph_list']])
+        metrics['FNs'] = sum([any(tm in m for tm in target_morphs) for m in ai_blobs_ext['ai_morph_list']])
         return metrics
 
     rev_coords = rev_blobs[['center_x', 'center_y']].values
@@ -222,14 +300,15 @@ def calculate_confusion_metrics(rev_blobs, ai_blobs_ext, target_morph, margin):
             best_match_idx = valid_matches[np.argmin(distances[valid_matches])]
             matched_ai_indices.add(best_match_idx)
 
-            if target_morph in ai_blobs_ext.iloc[best_match_idx]['ai_morph_list']:
+            # Check if ANY of the valid target morphs are in this matched AI blob
+            if any(tm in ai_blobs_ext.iloc[best_match_idx]['ai_morph_list'] for tm in target_morphs):
                 metrics['TPs'] += 1
             else:
                 metrics['FPs'] += 1
 
-    # FNs: AI detected the class in the extended ROI, but it wasn't matched
+    # FNs: AI detected ANY of the classes in the extended ROI, but it wasn't matched
     for j in range(len(ai_blobs_ext)):
-        if j not in matched_ai_indices and target_morph in ai_blobs_ext.iloc[j]['ai_morph_list']:
+        if j not in matched_ai_indices and target_morphs in ai_blobs_ext.iloc[j]['ai_morph_list']:
             metrics['FNs'] += 1
 
     return metrics
@@ -238,8 +317,10 @@ def calculate_confusion_metrics(rev_blobs, ai_blobs_ext, target_morph, margin):
 # ==========================================
 # 4. Core Pipeline
 # ==========================================
-def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_names=None):
+def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_names=None, cached_scan_cells=None):
     results = []
+    all_scan_cells_list = []
+    processed_scans = set()   # Prevents duplicating cells if a scan has multiple tasks
     if required_roi_names:
         rois_df = rois_df[rois_df['roi_name'].isin(required_roi_names) | (rois_df['roi_name'] == BASE_CLASS)]
 
@@ -249,20 +330,60 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
     for _, task_row in mapping_df.iterrows():
         scan_id = task_row['scan_id']
         task_id = task_row['task_id']
+        reviewer_name = task_row.get('Reviewer Name', task_row.get('Reviewer', 'Unknown'))
 
         scan_blobs = blobs_df[blobs_df['scan_id'] == scan_id]
         scan_rois = rois_df[rois_df['scan_id'] == scan_id]
 
         # --- Analysis 1: Full Scan AI ---
-        # AI ROI processing
-        base_ai_roi_df = scan_rois[(scan_rois['roi_name'] == BASE_CLASS)]
-        base_ai_roi = base_ai_roi_df.iloc[0] if not base_ai_roi_df.empty else None
+        if STUDY_MODE in ["PLT_SIZE", "RBC_SIZE"] and BBOX_FROM_JSON:
+            # Route A: Compute dynamically from local JSON bounding boxes
+            # Check if we have this scan in our cached CSV
+            if cached_scan_cells is not None and scan_id in cached_scan_cells['scan_id'].values:
+                base_ai_blobs = cached_scan_cells[cached_scan_cells['scan_id'] == scan_id].copy()
+                # Grab the resolution directly from the ROI definitions since we bypassed the JSON
+                json_res_mm_pix = scan_rois.iloc[0]['resolution_mm_pix'] if not scan_rois.empty else 0.1659 / 1000.0
+            else:
+                json_path = os.path.join(SCAN_RESULTS_PATH, scan_id, "results.json").replace("\\", "/")
+                base_ai_blobs, json_res_mm_pix = load_scan_json_blobs(json_path, JSON_CLASS)
 
-        # Grab model's blobs from model-chosen ROI
-        base_ai_blobs = scan_blobs[(scan_blobs['label_name'] == BASE_CLASS) & (scan_blobs['ai_version'] != MODEL_VERSION)]
-        if base_ai_roi is not None:
-            base_ai_blobs = get_blobs_in_roi(base_ai_blobs, base_ai_roi)
-        cells_in_scan = len(base_ai_blobs)
+                if not base_ai_blobs.empty and scan_id not in processed_scans:
+                    cache_df = base_ai_blobs.copy()
+                    cache_df['scan_id'] = scan_id
+                    # Calculate the numeric sizes for our regression database
+                    cache_df['Cell_Size_Max_um'] = cache_df['bounding_box'].apply(
+                        lambda b: max(ast.literal_eval(b)[2],
+                                      ast.literal_eval(b)[3]) * json_res_mm_pix * 1000.0 if pd.notna(b) else None
+                    )
+                    cache_df['Cell_Size_Mean_um'] = cache_df['bounding_box'].apply(
+                        lambda b: ((ast.literal_eval(b)[2] + ast.literal_eval(b)[3]) / 2.0) * json_res_mm_pix * 1000.0 if pd.notna(b) else None
+                    )
+                    all_scan_cells_list.append(cache_df[
+                                                   ['scan_id', 'bounding_box', 'Cell_Size_Max_um', 'Cell_Size_Mean_um', 'base_morph_list']])
+                    processed_scans.add(scan_id)
+
+            cells_in_scan = len(base_ai_blobs)
+
+            if not base_ai_blobs.empty:
+                base_ai_blobs['ai_morph_list'] = base_ai_blobs.apply(
+                    lambda row: calculate_size_based_morphologies(
+                        row['bounding_box'], json_res_mm_pix, STUDY_MODE, task_row, row['base_morph_list']
+                    ), axis=1
+                )
+            else:
+                base_ai_blobs['ai_morph_list'] = pd.Series(dtype=object)
+
+        else:
+            # Route B: Use standard Blobs_df string morphologies
+            # AI ROI processing
+            base_ai_roi_df = scan_rois[(scan_rois['roi_name'] == BASE_CLASS)]
+            base_ai_roi = base_ai_roi_df.iloc[0] if not base_ai_roi_df.empty else None
+
+            # Grab model's blobs from model-chosen ROI
+            base_ai_blobs = scan_blobs[(scan_blobs['label_name'] == BASE_CLASS) & (scan_blobs['ai_version'] != MODEL_VERSION)]
+            if base_ai_roi is not None:
+                base_ai_blobs = get_blobs_in_roi(base_ai_blobs, base_ai_roi)
+            cells_in_scan = len(base_ai_blobs)
 
 
         # --- Analysis 2: Reviewers' ROIs ---
@@ -311,6 +432,14 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
         valid_model_rois = scan_rois[scan_rois['roi_name'].fillna('').str.lower().str.endswith('model') | scan_rois['roi_name'].fillna('').str.lower().str.endswith('study')]
         valid_model_roi_ids = valid_model_rois['roi_id'].tolist()
 
+        # Check if the AI actually covered the Reviewer's area
+        ai_missing_in_roi = False
+        if rev_roi is not None:
+            has_coverage = any(check_roi_intersection(rev_roi, row) for _, row in valid_model_rois.iterrows())
+            if not has_coverage:
+                ai_missing_in_roi = True
+                print(f"Notice: AI did not run on the area chosen by reviewer in scan {scan_id} (Task: {task_id}).")
+
         # Extract blobs specific to the new model
         model_ai_blobs = scan_blobs[
             (scan_blobs['label_name'] == BASE_CLASS) &
@@ -341,12 +470,25 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
                     ai_in_ext_roi['ai_morph_list'] = ai_in_ext_roi['base_morph_list']
 
         for morphology in morphologies:
-            ai_morph_name = MORPHOLOGY_ALIASES.get(morphology, morphology)
+            # Define target labels (handling standard vs synthetic combined classes)
+            if morphology == "Helmet&Schisto":
+                target_rev_labels = ["Schistocyte", "Helmet cell"]
+                target_ai_labels = [
+                    MORPHOLOGY_ALIASES.get("Schistocyte", "Schistocyte"),
+                    MORPHOLOGY_ALIASES.get("Helmet cell", "Helmet cell")
+                ]
+            elif morphology == "PLT large&giant":
+                target_rev_labels = ["PLT large", "PLT giant"]
+                target_ai_labels = ["PLT large", "PLT giant"]
+            else:
+                target_rev_labels = [morphology]
+                target_ai_labels = [MORPHOLOGY_ALIASES.get(morphology, morphology)]
 
             res = {
                 'Morphology': morphology, 'SampleID': task_row.get('SampleID'),
                 'Site': task_row.get('Site'), 'Internal Count': task_row.get('Internal Count'),
-                'Reviewer': task_row.get('Reviewer'), 'Task Name': task_row.get('Task Name'),
+                'Reviewer': task_row.get('Reviewer'), 'Reviewer Name': reviewer_name,
+                'Task Name': task_row.get('Task Name'),
                 'New task': task_row.get('New task name'), 'scan_id': scan_id, 'task_id': task_id,
                 'roi_id': rev_roi['roi_id'] if rev_roi is not None else None,
                 'roi_name': rev_roi['roi_name'] if rev_roi is not None else None,
@@ -355,8 +497,15 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
             }
 
             # Full scan stats
-            # Using simple, fast string inclusion for the full scan
-            class_in_scan = base_ai_blobs['ai_morphologies'].str.contains(f'"{ai_morph_name}"', na=False).sum() if cells_in_scan else 0
+            if STUDY_MODE in ["PLT_SIZE", "RBC_SIZE"] and BBOX_FROM_JSON:
+                # Route A (JSON): Search through the actual Python lists we generated
+                class_in_scan = sum(any(label in m for label in target_ai_labels) for m in
+                                    base_ai_blobs['ai_morph_list']) if cells_in_scan else 0
+            else:
+                # Route B (CSV): Fast regex search on the raw string column
+                ai_regex = '|'.join([f'"{label}"' for label in target_ai_labels])
+                class_in_scan = base_ai_blobs['ai_morphologies'].str.contains(ai_regex, regex=True, na=False).sum() if cells_in_scan else 0
+
             res['class_in_scan'] = class_in_scan
             res['percent_in_scan_ai'] = round((100 * class_in_scan / cells_in_scan), 2) if cells_in_scan else None
 
@@ -365,31 +514,56 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
                             'percent_in_roi_ai': None, 'percent_in_roi_rev': None, 'TPs': None,
                             'FPs': None, 'FNs': None, 'empty_blobs': None, 'double_blobs': None})
             else:
-                # Reviewer explicitly marked blobs
+                # Reviewer explicitly marked blobs (matches ANY of the target reviewer labels)
                 rev_all_blobs = scan_blobs[
-                    (scan_blobs['roi_id'] == rev_roi['roi_id']) & (scan_blobs['label_name'] == morphology)]
+                    (scan_blobs['roi_id'] == rev_roi['roi_id']) &
+                    (scan_blobs['label_name'].isin(target_rev_labels))
+                    ]
                 rev_blobs_dedup, double_blobs = deduplicate_reviewer_blobs(rev_all_blobs, TINY_MARGIN)
                 class_in_roi_rev = len(rev_blobs_dedup)
 
-                # Filter down the already-evaluated extended AI blobs to just the strict ROI boundaries
-                ai_in_roi = get_blobs_in_roi(ai_in_ext_roi, rev_roi, expand_by=0)
-                cells_in_roi = len(ai_in_roi)
-                class_in_roi_ai = sum([ai_morph_name in m for m in ai_in_roi['ai_morph_list']]) if cells_in_roi else 0
+                if ai_missing_in_roi:
+                    # Output None for all AI-dependent ROI columns
+                    res.update({
+                        'cells_in_roi': None, 'class_in_roi_ai': None,
+                        'class_in_roi_rev': class_in_roi_rev, 'double_blobs': double_blobs,
+                        'percent_in_roi_ai': None, 'percent_in_roi_rev': None,
+                        'TPs': None, 'FPs': None, 'FNs': None, 'empty_blobs': None
+                    })
+                else:
+                    # Filter down the already-evaluated extended AI blobs to just the strict ROI boundaries
+                    ai_in_roi = get_blobs_in_roi(ai_in_ext_roi, rev_roi, expand_by=0)
+                    cells_in_roi = len(ai_in_roi)
 
-                res.update({
-                    'cells_in_roi': cells_in_roi, 'class_in_roi_ai': class_in_roi_ai,
-                    'class_in_roi_rev': class_in_roi_rev, 'double_blobs': double_blobs,
-                    'percent_in_roi_ai': round((100 * class_in_roi_ai / cells_in_roi), 2) if cells_in_roi else None,
-                    'percent_in_roi_rev': round((100 * class_in_roi_rev / cells_in_roi), 2) if cells_in_roi else None
-                })
+                    # AI ROI logic (matches ANY of the target AI labels)
+                    class_in_roi_ai = sum([any(label in m for label in target_ai_labels) for m in
+                                           ai_in_roi['ai_morph_list']]) if cells_in_roi else 0
 
-                # Confusion metrics use the pre-evaluated `ai_in_ext_roi` subset
-                metrics = calculate_confusion_metrics(rev_blobs_dedup, ai_in_ext_roi, ai_morph_name, MARGIN_OF_ERROR)
-                res.update(metrics)
+                    res.update({
+                        'cells_in_roi': cells_in_roi, 'class_in_roi_ai': class_in_roi_ai,
+                        'class_in_roi_rev': class_in_roi_rev, 'double_blobs': double_blobs,
+                        'percent_in_roi_ai': round((100 * class_in_roi_ai / cells_in_roi), 2) if cells_in_roi else None,
+                        'percent_in_roi_rev': round((100 * class_in_roi_rev / cells_in_roi), 2) if cells_in_roi else None
+                    })
+
+                    # Confusion metrics use the pre-evaluated `ai_in_ext_roi` subset
+                    metrics = calculate_confusion_metrics(rev_blobs_dedup, ai_in_ext_roi, target_ai_labels, MARGIN_OF_ERROR)
+                    res.update(metrics)
 
             results.append(res)
 
-    cols_order = ['Morphology', 'SampleID', 'Site', 'Internal Count', 'Reviewer', 'Task Name', 'New task',
+    # Save or update the master database of all scan cells
+    if all_scan_cells_list:
+        new_cells_df = pd.concat(all_scan_cells_list, ignore_index=True)
+
+        # If we had existing cached cells, merge the new ones with them
+        if cached_scan_cells is not None:
+            new_cells_df = pd.concat([cached_scan_cells, new_cells_df], ignore_index=True)
+
+        new_cells_df.to_csv(rf"side_results/full_scan_cells_{STUDY_MODE}.csv", index=False)
+        print(f"Updated full_scan_cells_{STUDY_MODE}.csv with new scan data.")
+
+    cols_order = ['Morphology', 'SampleID', 'Site', 'Internal Count', 'Reviewer', 'Reviewer Name', 'Task Name', 'New task',
                   'scan_id', 'task_id', 'roi_id', 'roi_name', 'roi_size', 'cells_in_scan', 'cells_in_roi',
                   'class_in_scan', 'class_in_roi_ai', 'class_in_roi_rev', 'percent_in_scan_ai',
                   'percent_in_roi_ai', 'percent_in_roi_rev', 'TPs', 'FPs', 'FNs', 'empty_blobs', 'double_blobs']
@@ -397,12 +571,14 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
 
 
 if __name__ == "__main__":
-    STUDY_MODE = "RBC_Shape"  # RBC_Shape, RBC_SIZE or PLT_SIZE
+    STUDY_MODE = "PLT_SIZE"  # RBC_Shape, RBC_SIZE or PLT_SIZE
     USE_GCS = True  # toggle this to False is blobs csv and scans json are in local directory
     GCS_BUCKET_NAME = "scopio_labeling_tool_datasets_eur"
 
     # If GCS, DATA_DIR is the prefix path in the bucket. If local, it's the folder path.
-    DATA_DIR = "RBC_Shape_Study_for_Script/2026-07-12_11:02:23.999813+00:00/"
+    DATA_DIR = "PLT_Size_Study/2026-07-16_16:35:07.541866+00:00/"
+    # DATA_DIR = "RBC_Shape_Study/2026-07-16_07:02:49.736033+00:00/"
+    # DATA_DIR = "RBC_Size_Study/2026-07-16_16:28:34.192300+00:00/"
     MAPPING_DIR = "./mapping"  # location of tasks mapping
 
     MAPPING_FILE = os.path.join(MAPPING_DIR, f"{STUDY_MODE}_tasks_mapping.csv")
@@ -417,18 +593,31 @@ if __name__ == "__main__":
 
     # define cells to look for
     BASE_CLASS = "PLT" if STUDY_MODE == "PLT_SIZE" else "RBC"
+    JSON_CLASS = "platelet" if STUDY_MODE == "PLT_SIZE" else "rbc"
     if STUDY_MODE == "PLT_SIZE":
-        REQUESTED_MORPHOLOGIES = ["PLT large", "PLT giant"]
+        REQUESTED_MORPHOLOGIES = ["PLT large", "PLT giant", "PLT large&giant"]
     elif STUDY_MODE == "RBC_SIZE":
         REQUESTED_MORPHOLOGIES = ["RBC macrocyte", "RBC microcyte"]
     else:
-        REQUESTED_MORPHOLOGIES = ["Bite cell", "Helmet cell", "Spherocyte", "Schistocyte", "Blister cell"]
+        REQUESTED_MORPHOLOGIES = ["Bite cell", "Helmet cell", "Spherocyte", "Schistocyte", "Blister cell", "Helmet&Schisto"]
 
     # load data
     mapping_df = load_mapping(MAPPING_FILE)  # mapping does not sit in the bucket, so don't include the bucket argument
     rois_df = load_rois_from_json(JSON_FILE, bucket=bucket)
     blobs_df = load_blobs(DATA_DIR, bucket=bucket)
 
+    blobs_df = blobs_df[blobs_df['roi_id'].isin(rois_df['roi_id'])]  # Purge any blobs belonging to ROIs that were marked as deleted in the JSON
+
+    # Load cached full-scan cells if available
+    cached_df = None
+    cache_file = rf"side_results/full_scan_cells_{STUDY_MODE}.csv"
+    if USE_CACHED_FULL_SCAN and os.path.exists(cache_file):
+        print(f"Loading cached scan cells from {cache_file}...")
+        cached_df = pd.read_csv(cache_file)
+        # Convert string representations of lists back to Python lists upfront to save loop time
+        cached_df['base_morph_list'] = cached_df['base_morph_list'].apply(
+            lambda x: ast.literal_eval(x) if pd.notna(x) else [])
+
     # Process Study
     output_df = process_study(mapping_df, rois_df, blobs_df, REQUESTED_MORPHOLOGIES)
-    output_df.to_csv(f"{STUDY_MODE}_results.csv", index=False)
+    output_df.to_csv(rf"results/{STUDY_MODE}_results.csv", index=False)
