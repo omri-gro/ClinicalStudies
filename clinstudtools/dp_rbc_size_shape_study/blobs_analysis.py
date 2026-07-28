@@ -571,12 +571,12 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
 
 
 if __name__ == "__main__":
-    STUDY_MODE = "PLT_SIZE"  # RBC_Shape, RBC_SIZE or PLT_SIZE
+    STUDY_MODE = "RBC_Shape"  # RBC_Shape, RBC_SIZE or PLT_SIZE
     USE_GCS = True  # toggle this to False is blobs csv and scans json are in local directory
     GCS_BUCKET_NAME = "scopio_labeling_tool_datasets_eur"
 
     # If GCS, DATA_DIR is the prefix path in the bucket. If local, it's the folder path.
-    DATA_DIR = "PLT_Size_Study/2026-07-16_16:35:07.541866+00:00/"
+    DATA_DIR = "RBC_Shape_Study/2026-07-28_08:22:58.055592+00:00/"
     # DATA_DIR = "RBC_Shape_Study/2026-07-16_07:02:49.736033+00:00/"
     # DATA_DIR = "RBC_Size_Study/2026-07-16_16:28:34.192300+00:00/"
     MAPPING_DIR = "./mapping"  # location of tasks mapping

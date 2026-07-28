@@ -4,6 +4,7 @@
 import pandas as pd
 import numpy as np
 from clinstudtools.core.metadata import MetadataBundle
+from utils import validate_numeric_columns
 
 def calc_diff(df, metadata, diff_cells="WBC diff", total_var="Total WBC", additional_cells=None, to_100=True):
     """
@@ -111,6 +112,10 @@ def diff_from_total(df, metadata, diff_cells="WBC diff", total_count="Total WBC"
     if total_count not in df.columns:
         print(f"\033[91mWarning: {total_count} variable not found in DataFrame.\033[0m")
         return df
+
+    # Validate and coerce data types using the helper function
+    columns_to_check = diff_vars + [total_count]
+    df = validate_numeric_columns(df, columns_to_check)
 
     # for handling cases where total_count is <1
     no_total = ~(df[total_count] > 1)

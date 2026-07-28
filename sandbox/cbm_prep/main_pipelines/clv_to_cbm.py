@@ -13,20 +13,22 @@ sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
 from clinstudtools import careful_map, apply_arbitration_override
 from clinstudtools.core.metadata import MetadataBundle
 from clinstudtools.utils import read_to_df, write_df_to_file
-from clinstudtools.transforms import filter_by_reference, filter_samples_by_condition
+from clinstudtools.transforms import filter_by_reference, filter_samples_by_condition, filter_by_condition
 from clinstudtools.preprocessing import add_grade_column, add_pos_column
 
 
 if __name__ == "__main__":
-    cbm_version = 'v319'  # currently v317 or v319
+    cbm_version = 'v325'  # v317 / v319 / v325
+    color = "RGB"   # RGB / Amber
     inter = False
     comp_with_cbm = True
-    sen_spec = True
+    sen_spec = False
 
-    min_inv = 2  # False or number
+    min_inv = False  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
+    stain_flt = False  # inclusions parameters not reported when stain residue > stain_max
 
     """
     current filtering investigation
@@ -36,13 +38,16 @@ if __name__ == "__main__":
     rmv_brd no influence for clv (not enough borderline cases reviewed in ClV to make a difference)
     """
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}'
+    stain_str = '_stain_flt' if stain_flt else ''
+    color_str = '_Amber' if color == "Amber" else ''
 
-    intr_by_pair = False
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}{stain_str}{color_str}'
+
+    intr_by_pair = False   # broken and returns "The following values are missing from the dictionary and will become NaN: {'Rev2', 'Rev1', 'Arbitrator'}" - needs correction of pairs dict
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
     rbc_agg_params = True  # parameters like Oval+Ellip, Acan+Echin
@@ -79,6 +84,7 @@ if __name__ == "__main__":
         # Explicitly tag Arbitrators
         'Dr. med. Weigand, Michael': 'Arbitrator',
         'Dan BENISTY': 'Arbitrator',
+        'Ben-Zion Katz': 'Arbitrator',
 
         # Preserve system/automated roles
         'ClV': 'ClV',
@@ -105,6 +111,8 @@ if __name__ == "__main__":
     # from previous attempts to quantify PLT morphologies with ClV
     vars_to_test = metadata.variable_groups.get('RBC morphology', []) + metadata.variable_groups.get('RBC combinations', [])
 
+    if stain_flt:
+        vars_to_test = metadata.variable_groups.get('RBC inclusions', [])
 
     vars_to_print = vars_to_test + ['TotalRBC'] + ['TotalPLT']
     id_vars_clv = ["SampleID", "Site", "Method", "FileName", 'Investigator']
@@ -145,8 +153,12 @@ if __name__ == "__main__":
     df_clv = df_clv.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
     df_clv = create_derived_variables_long(df_clv, metadata)
 
-    df_cbm = medium_pipe(f'all6_RGB_CBM_{cbm_version}.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
-                     id_vars=id_vars_cbm, check_wbc_diff=False)
+    # don't report if stain residue flag is on
+    stain_res_max = 0.3
+    raw_cbm_cond = f"`Stain Residue`>={stain_res_max}" if stain_flt else None
+
+    df_cbm = medium_pipe(f'all6_{color}_CBM_{cbm_version}.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
+                     id_vars=id_vars_cbm, check_wbc_diff=False, pre_cond=raw_cbm_cond)
     df_cbm = add_grade_column(df_cbm, metadata)
     df_cbm = add_pos_column(df_cbm, metadata)
     df_cbm = df_cbm.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
@@ -180,7 +192,7 @@ if __name__ == "__main__":
     if inter:
         int_save_name = f'clv_inter_{crf_ssn}-ssn_no_scrtch-{no_scrtch}_arbrmv-{rmv_brd}_bypair-{intr_by_pair}'
 
-        intr_df = methd_comp.only_when_cond(f"Investigator!='Mean Investigator' and Method=='{ref_arm}'").df.copy()
+        intr_df = filter_by_condition(methd_comp.df, f"Investigator!='Mean Investigator' and Method=='{ref_arm}'")
         if intr_by_pair:
             intr_df['Site'] = careful_map(intr_df['Investigator'], pair_map)
         # intr_df['Investigator'] = careful_map(intr_df['Investigator'], inv_map)
@@ -237,7 +249,8 @@ if __name__ == "__main__":
                                                 row_identifiers=["Site", "SampleID"],
                                                 comparison_dims=("Variable", "Method", "Investigator"),
                                                 needed_vals=vars_to_print,
-                                                needed_grades=['ScanID'])
+                                                needed_grades=['ScanID'],
+                                                row_completeness="none")
 
         # comparison of CBM will be only with MeanInvestigator
         methd_comp = methd_comp.apply_to_df('query', f"Investigator=='Mean Investigator' or Investigator=='{test_arm}'", inplace=False)

@@ -153,6 +153,10 @@ def filter_samples_by_condition(df: pd.DataFrame, condition: str, filtering_cols
     Example:
         filter_samples_by_condition(df, "Variable == 'Total WBC' and Value >= 100")
     """
+    default_filt_cols = ['Site', 'SampleID']
+    if filtering_cols is None and set(default_filt_cols).issubset(df.columns):
+        filtering_cols = default_filt_cols
+
     needed_cases = filter_by_condition(df, condition)
     return filter_by_reference(df, needed_cases, filtering_cols, include_rows=True)
 

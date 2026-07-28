@@ -22,11 +22,11 @@ if __name__ == "__main__":
     cbm_version = 'v325'  # v317 / v319 / v325
 
     bin_params = True
-    inter = True
+    inter = False
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
@@ -41,6 +41,7 @@ if __name__ == "__main__":
     no_cpg = False
     by_inv = False
     no_arb_cands = False    # currently not in use - for checking arbitration request for additional slides
+    rmv_tech_flgs = True
 
     max_unclassstr = f'_maxuncls{max_unclass}' if max_unclass else ''
     min_wbcmnlstr = f'_minmnlwbc{min_wbc_mnl}' if min_wbc_mnl else ''
@@ -54,7 +55,8 @@ if __name__ == "__main__":
     cbm_version_str = f'_{cbm_version}' if cbm_version else ''
     no_cpg_str = '_no_CPG' if no_cpg else ''
     no_arb_cands_str = '_NoArbCands' if no_arb_cands else ''
-    save_name = f'mnl_{max_unclassstr}{min_wbcmnlstr}{min_wbccbmstr}{rmv_brdstr}{min_inv_str}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{suffix}'
+    rmv_tech_flgs_str = '_NoTechFlgs' if rmv_tech_flgs else ''
+    save_name = f'mnl_{max_unclassstr}{min_wbcmnlstr}{min_wbccbmstr}{rmv_brdstr}{min_inv_str}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{rmv_tech_flgs_str}{suffix}'
 
 
     # string for filtering raw CBM file (more can be added later)
@@ -204,6 +206,12 @@ if __name__ == "__main__":
         vars_to_thres = ['Hairy Cell', 'Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL']
         thres = 5
         cbm_df.loc[(cbm_df['Variable'].isin(vars_to_thres)) & (cbm_df['Value'] < thres), 'Value'] = 0
+
+    if rmv_tech_flgs:
+        max_unclass_cbm = 3
+        cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
+        minimal_mono_fovs = 500
+        cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
 
     # RnA analysis areas that are incorrect
     df = filter_by_reference(
