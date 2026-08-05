@@ -6,7 +6,7 @@ import ast
 # ==========================================
 # Configuration
 # ==========================================
-STUDY_MODE = "PLT_SIZE"  # "PLT_SIZE" or "RBC_SIZE"
+STUDY_MODE = "RBC_SIZE"  # "PLT_SIZE" or "RBC_SIZE"
 
 # File paths
 CELLS_DATA = rf"side_results/full_scan_cells_{STUDY_MODE}.csv"

@@ -11,7 +11,7 @@ from regressions import deming_regression_pe
 # ==========================================
 # 1. Configuration
 # ==========================================
-STUDY_MODE = "PLT_SIZE"  # Change to "PLT_SIZE" or "RBC_SIZE"
+STUDY_MODE = "RBC_SIZE"  # Change to "PLT_SIZE" or "RBC_SIZE"
 SWEEP_DATA = rf"side_results/regression_sweep_{STUDY_MODE}.csv"
 MAPPING_FILE = rf"./mapping/{STUDY_MODE}_tasks_mapping.csv"
 OUTPUT_DIR = "./side_results"

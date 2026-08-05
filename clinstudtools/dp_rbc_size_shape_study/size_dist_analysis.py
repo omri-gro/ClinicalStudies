@@ -6,7 +6,7 @@ import seaborn as sns
 # ==========================================
 # 1. Configuration
 # ==========================================
-STUDY_MODE = "PLT_SIZE"  # "PLT_SIZE" or "RBC_SIZE"
+STUDY_MODE = "RBC_SIZE"  # "PLT_SIZE" or "RBC_SIZE"
 DATA_FILE = rf"./side_results/behavioral_cell_data_{STUDY_MODE}.csv"
 OUTPUT_DIR = "./visualizations"
 

@@ -13,7 +13,7 @@ from clinstudtools.utils import read_to_df
 
 
 if __name__ == "__main__":
-    suffix = ''
+    suffix = '_with_hairy_correction'
     sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
@@ -22,11 +22,11 @@ if __name__ == "__main__":
     cbm_version = 'v325'  # v317 / v319 / v325
 
     bin_params = True
-    inter = False
+    inter = True
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = False
+    plot_reg = True
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
@@ -35,9 +35,9 @@ if __name__ == "__main__":
     min_wbc_cbm = 200  # number or False
     diff500 = False
     crf_ssn = 'all'  # 'all' or 'post'
-    aftr_2nd_ssn = False
+    aftr_2nd_ssn = False  # suggest not to use this one
     cbm_thresholding = False  # if True than CBM<1% changes to 0 for hairy cells, LGL and atypical
-    after_last_ssn = False  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
+    after_last_ssn = True  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
     no_cpg = False
     by_inv = False
     no_arb_cands = False    # currently not in use - for checking arbitration request for additional slides
@@ -78,6 +78,7 @@ if __name__ == "__main__":
         'Ebikebuna Rufus F': 'Ebi',
         'Thu Tran': 'Thu',
         'THU TRAN': 'Thu',
+        'thu tran': 'Thu',
         'Aubrey B Charlton': 'Aubrey',
         'Deborah Swearingen': 'Deborah',
         'Maria Buen Viana De Perio': 'Buen',
@@ -107,6 +108,7 @@ if __name__ == "__main__":
         'Jared Block': 'Arbitrator',
         'Jennifer Egan': 'Arbitrator',
         'Dr. med. Weigand, Michael': 'Arbitrator',
+        'Dr. med. Michael Weigand': 'Arbitrator',
         'Dr Guy Hannah': 'Arbitrator',
         'Dan BENISTY': 'Arbitrator',
         'Olga Pozdnyakova': 'Arbitrator',
@@ -195,7 +197,7 @@ if __name__ == "__main__":
     df = create_derived_variables_long(df, metadata)
 
 
-    cbm_file_name = f'all6_RGB_CBM_{cbm_version}.csv'
+    cbm_file_name = f'all6_both_CBM_{cbm_version}.csv'
     cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison', pre_cond=raw_cbm_cond)
 
     cbm_df['Investigator'] = test_arm

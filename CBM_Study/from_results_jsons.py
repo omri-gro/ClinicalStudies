@@ -154,8 +154,23 @@ def calculate_wbc_metrics(counts, total_wbc):
     # Calculate sum parameter
     abnormal_count = (counts.get('Aberrant Lymphocyte', 0) +
                       counts.get('Tier Two Aberrant Lymphocyte', 0) +
-                      counts.get('Hairy Cell', 0) +
                       counts.get('Sezary Cell', 0))
+
+    # Handle Hairy Cell logic
+    hairy_cell_count = counts.get('Hairy Cell', 0)
+
+    if CONDITIONAL_HAIRY_CELL:
+        hairy_cell_pct = (hairy_cell_count / wbc_denominator) * 100
+        if hairy_cell_pct > 2.0:
+            abnormal_count += hairy_cell_count
+        else:
+            # Reassign to regular Lymphocytes and recalculate the metric
+            lymph_count = counts.get('Lymphocyte', 0) + hairy_cell_count
+            metrics['Lymphocyte'] = round(lymph_count / wbc_denominator * 100, 2)
+    else:
+        # Default behavior: always abnormal
+        abnormal_count += hairy_cell_count
+
     metrics['Abnormal Lymphocyte'] = round(abnormal_count / wbc_denominator * 100, 2)
 
     return metrics
@@ -210,32 +225,60 @@ def parse_json(jd, scan_uuid, site):
     return result
 
 
-def process_site(site, all_results):
-    """Processes all JSON files for a given site directory."""
-    site_path = os.path.join(parent_dir, site)
-    json_dir = os.path.join(site_path, 'pbs')
+def process_site(site_name, site_path, all_results):
+    """Processes all JSON files for a given site directory with a progress bar."""
+    # Check for 'pbs' subdirectory; if not present, assume the site_path is the search directory
+    search_dir = os.path.join(site_path, 'pbs') if os.path.exists(os.path.join(site_path, 'pbs')) else site_path
     logs_dir = os.path.join(site_path, 'logs')
 
-    json_files = [f for f in os.listdir(json_dir) if f.endswith('.json')]
-    if not json_files:
-        print(f"No JSON files found in {json_dir}")
+    if not os.path.exists(search_dir):
+        print(f"Warning: Directory not found -> {search_dir}")
         return
 
-    for filename in tqdm(json_files, desc=f"Processing {site}"):
-        scan_uuid = os.path.splitext(filename)[0]
-        file_path = os.path.join(json_dir, filename)
-        log_path = os.path.join(logs_dir, f'{scan_uuid}.log')
+    tasks = []
 
+    # Map out files based on the chosen directory structure
+    if USE_SUBDIR_STRUCTURE:
+        for item_name in os.listdir(search_dir):
+            item_path = os.path.join(search_dir, item_name)
+
+            if os.path.isdir(item_path):
+                scan_uuid = item_name
+                json_path = os.path.join(item_path, 'results.json')
+
+                if os.path.exists(json_path):
+                    # Check for log file in the scan's subdirectory first, fallback to logs folder
+                    log_path = os.path.join(item_path, f'{scan_uuid}.log')
+                    if not os.path.exists(log_path):
+                        log_path = os.path.join(logs_dir, f'{scan_uuid}.log')
+
+                    tasks.append((scan_uuid, json_path, log_path))
+    else:
+        for filename in os.listdir(search_dir):
+            if filename.endswith('.json'):
+                scan_uuid = os.path.splitext(filename)[0]
+                json_path = os.path.join(search_dir, filename)
+                log_path = os.path.join(logs_dir, f'{scan_uuid}.log')
+
+                tasks.append((scan_uuid, json_path, log_path))
+
+    if not tasks:
+        print(f"No valid JSON files found in -> {search_dir}")
+        return
+
+    # Process mapped tasks with the progress bar
+    for scan_uuid, file_path, log_path in tqdm(tasks, desc=f"Processing {site_name}"):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 jd = json.load(f)
 
-            scan_data = parse_json(jd, scan_uuid, site)
+            scan_data = parse_json(jd, scan_uuid, site_name)
             scan_data['Creation_Date'] = get_datetime_from_log(log_path)
 
             all_results.append(scan_data)
+
         except Exception as e:
-            tqdm.write(f"\nError parsing scan ID {scan_uuid} at site {site}: {e}")
+            tqdm.write(f"\nError parsing scan ID {scan_uuid} at site {site_name}: {e}")
             tqdm.write(traceback.format_exc())
             continue
 
@@ -246,15 +289,38 @@ def process_site(site, all_results):
 if __name__ == '__main__':
     run_name = "cbm_study_run"
 
+    # False: The directory contains flat files named {scan_uuid}.json
+    # True: The directory contains subdirectories named {scan_uuid}, each holding a 'results.json'
+    USE_SUBDIR_STRUCTURE = True
+
+    # True: Hairy Cell > 2% -> Abnormal Lymphocyte | Hairy Cell <= 2% -> regular Lymphocyte
+    # False: Hairy Cell is always counted as Abnormal Lymphocyte
+    CONDITIONAL_HAIRY_CELL = True
+
     parent_dir = r"C:\Users\omrig\PycharmProjects\pythonProject\CBM_verification\new_ssh\importing"
     output_dir = r"C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\CBM_Study\results\scans_analysis"
-    sites = ["sb1024", "sb1108", "sb1114", "sb1127", "sb1134", "sb3058", "sb3130", "sb3184", "sb3334"]
+
+    # SITES can contain either folder names (which will be appended to PARENT_DIR)
+    # OR full absolute paths to specific directories.
+    sites = ["sb1024", "sb1108", "sb1114", "sb1127", "sb1132", "sb1134", "sb3058", "sb3130", "sb3184", "sb3334"]
+    sites = [
+        r"S:\talm\cbm_clinical_trial\Final_Run\RGB\pbs-3.25\json_structured",
+        r"S:\talm\cbm_clinical_trial\Final_Run\Amber\pbs-3.25\json_structured"
+    ]
 
     all_results = []
     os.makedirs(output_dir, exist_ok=True)
 
-    for site in sites:
-        process_site(site, all_results)
+    for site_entry in sites:
+        # Determine if the entry is a full absolute path or a relative folder name
+        if os.path.isabs(site_entry):
+            site_name = os.path.basename(site_entry)
+            site_path = site_entry
+        else:
+            site_name = site_entry
+            site_path = os.path.join(parent_dir, site_entry)
+
+        process_site(site_name, site_path, all_results)
 
     if all_results:
         # Construct and clean master DataFrame
