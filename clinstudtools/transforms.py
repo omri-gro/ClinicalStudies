@@ -80,7 +80,8 @@ def filter_by_reference(
         filtering_cols: Optional[Sequence[str]] = None,
         include_rows: bool = False,
         target_vars: Optional[Union[str, Sequence[str]]] = None,
-        metadata=None
+        metadata=None,
+        verbose: bool = True
 ) -> pd.DataFrame:
     """
     Filter a DataFrame based on a reference list of samples to exclude/include.
@@ -90,6 +91,7 @@ def filter_by_reference(
     target_vars - If provided, filtering only drops/keeps rows for these specific variables.
                       Data for other variables in the same sample is left untouched.
     metadata - Used to unpack variable groups (e.g., 'WBC diff') if target_vars is provided.
+    verbose - If True, prints the number of samples removed.
     """
     # Use your existing safe read function
     df2 = filtering_source if isinstance(filtering_source, pd.DataFrame) else read_to_df(filtering_source)
@@ -131,11 +133,22 @@ def filter_by_reference(
 
         is_target_var = df1['Variable'].isin(target_vars)
         final_mask = ~(is_target_var & ~mask) if include_rows else ~(is_target_var & mask)
-        return df1.loc[final_mask].copy()
+        out_df = df1.loc[final_mask].copy()
+    else:
+        # Global filtering
+        mask = mask if include_rows else ~mask
+        out_df = df1.loc[mask].copy()
 
-    # Global filtering
-    mask = mask if include_rows else ~mask
-    return df1.loc[mask].copy()
+    # Calculate and print the number of samples removed
+    if verbose and common:
+        initial_samples = df1[common].drop_duplicates().shape[0]
+        remaining_samples = out_df[common].drop_duplicates().shape[0]
+        removed_count = initial_samples - remaining_samples
+        if removed_count > 0:
+            source_name = filtering_source if isinstance(filtering_source, str) else "reference dataframe"
+            print(f"Removed {removed_count} samples based on {source_name}.")
+
+    return out_df
 
 
 def filter_by_condition(df: pd.DataFrame, condition: str) -> pd.DataFrame:
@@ -158,5 +171,14 @@ def filter_samples_by_condition(df: pd.DataFrame, condition: str, filtering_cols
         filtering_cols = default_filt_cols
 
     needed_cases = filter_by_condition(df, condition)
-    return filter_by_reference(df, needed_cases, filtering_cols, include_rows=True)
+    filtered_df = filter_by_reference(df, needed_cases, filtering_cols, include_rows=True, verbose=False)
+
+    # Calculate and print the number of samples removed
+    if filtering_cols:
+        initial_samples = df[filtering_cols].drop_duplicates().shape[0]
+        remaining_samples = filtered_df[filtering_cols].drop_duplicates().shape[0]
+        removed_count = initial_samples - remaining_samples
+        print(f"Removed {removed_count} samples based on condition: '{condition}'")
+
+    return filtered_df
 

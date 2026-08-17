@@ -37,8 +37,9 @@ WBC_TYPES = {
     'Hairy Cell', 'Sezary Cell', 'Unclassified WBC'
 }
 
-# Metrics calculated as a percentage of Total WBC
-PER_100_WBC_TYPES = {'Normoblast', 'Smudge Cell', 'Dohle Bodies', 'Pelger Cell', 'Auer Rods'}
+# Togglable sets for calculation methods
+PER_100_WBC_TYPES = {'Normoblast', 'Dohle Bodies', 'Pelger Cell', 'Auer Rods'}
+PER_10_FOV_TYPES = {'Smudge Cell'}
 
 # Renaming dictionary mapping raw JSON terms to final requested terms
 JSON_TO_FINAL_MAP = {
@@ -176,6 +177,33 @@ def calculate_wbc_metrics(counts, total_wbc):
     return metrics
 
 
+def calculate_fov_metrics(counts, jd):
+    """Calculates parameters based on the physical High Power Field (HPF) area scanned."""
+    metrics = {}
+
+    # Safely extract um_per_pixel (fallback to 0.2016 from standard scans)
+    um_per_pixel = jd.get('um_per_pixel', 0.2016)
+    pix2hpf = (um_per_pixel ** 2) / (195 ** 2)
+
+    # Safely sum up the areas of all regions by cell type
+    areas_hpf = {}
+    for region in jd.get('regions', []):
+        rtype = region.get('cell_type')
+        bounds = region.get('bounds') or {}
+        area_px = bounds.get('width', 0) * bounds.get('height', 0)
+        areas_hpf[rtype] = areas_hpf.get(rtype, 0) + (area_px * pix2hpf)
+
+    # We default to the 'wbc' region area for these elements. Prevent ZeroDivisionError.
+    wbc_area_hpf = max(areas_hpf.get('wbc', 1), 1)
+
+    for cell in PER_10_FOV_TYPES:
+        std_name = JSON_TO_FINAL_MAP.get(cell, cell)
+        count_val = counts.get(cell, 0)
+        metrics[std_name] = round((count_val / wbc_area_hpf) * 10, 2)
+
+    return metrics
+
+
 def parse_json(jd, scan_uuid, site):
     """Orchestrates parsing for a single scan JSON."""
     cv_info = jd.get('cv_info') or {}
@@ -203,8 +231,9 @@ def parse_json(jd, scan_uuid, site):
                 final_name = JSON_TO_FINAL_MAP.get(raw_name, raw_name)
                 result[final_name] = round(obs['percentage'], 2)
 
-    # 3. Add WBC relative calculations
+    # 3. Add Calculated Relatives & FOV Metrics
     result.update(calculate_wbc_metrics(counts, total_wbc))
+    result.update(calculate_fov_metrics(counts, jd))
 
     # 4. Add Absolute Counts / Plt Metrics
     result['Platelets Estimate'] = counts['platelet']

@@ -290,7 +290,6 @@ variables:
    - smudge cell
    - smudge_cell_percentage
   groups:
-   - WBC-like
    - density
    - count
    - WBC&PLT compare

@@ -19,16 +19,17 @@ from clinstudtools.preprocessing import add_grade_column, add_pos_column
 
 if __name__ == "__main__":
     cbm_version = 'v325'  # v317 / v319 / v325
-    color = "RGB"   # RGB / Amber
+    color = "both"   # RGB / Amber / both
     inter = False
     comp_with_cbm = True
     sen_spec = False
 
-    min_inv = False  # False or number
+    min_inv = 2  # False or number
     no_scrtch = False  # True to filter scratched slides out
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
     stain_flt = False  # inclusions parameters not reported when stain residue > stain_max
+    rmv_tech_flgs = False  # does not seem to help with anything
 
     """
     current filtering investigation
@@ -40,14 +41,15 @@ if __name__ == "__main__":
 
     stain_str = '_stain_flt' if stain_flt else ''
     color_str = '_Amber' if color == "Amber" else ''
+    rmv_tech_flgs_str = '_NoTechFlgs' if rmv_tech_flgs else ''
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}{stain_str}{color_str}'
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}{stain_str}{color_str}{rmv_tech_flgs_str}'
 
     intr_by_pair = False   # broken and returns "The following values are missing from the dictionary and will become NaN: {'Rev2', 'Rev1', 'Arbitrator'}" - needs correction of pairs dict
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = False
+    plot_reg = True
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
     rbc_agg_params = True  # parameters like Oval+Ellip, Acan+Echin
@@ -85,6 +87,8 @@ if __name__ == "__main__":
         'Dr. med. Weigand, Michael': 'Arbitrator',
         'Dan BENISTY': 'Arbitrator',
         'Ben-Zion Katz': 'Arbitrator',
+        'Christopher Hergott': 'Arbitrator',
+        'Robert P Hasserjian': 'Arbitrator',
 
         # Preserve system/automated roles
         'ClV': 'ClV',
@@ -165,6 +169,14 @@ if __name__ == "__main__":
     df_cbm = create_derived_variables_long(df_cbm, metadata)
     df_cbm["Investigator"] = test_arm
     df_cbm["Original_Investigator"] = test_arm
+
+    if rmv_tech_flgs:
+        max_unclass_cbm = 3
+        df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
+        minimal_mono_fovs = 500
+        df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
+
+
     all_dfs = pd.concat([df_clv, df_cbm])
 
 

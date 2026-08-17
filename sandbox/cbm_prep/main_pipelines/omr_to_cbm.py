@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     metadata = MetadataBundle(meta_path)
 
-    cbm_file_name = f'all6_RGB_CBM_{cbm_version}.csv'
+    cbm_file_name = f'all6_both_CBM_{cbm_version}.csv'
     cbm_df = medium_pipe(cbm_file_name, None, 'CBM', metadata, dir=r'raw/cbm_method_comparison')
     # gather omr as usual
     srcs = {(site, ref_arm): f'{site}_{ref_arm}.csv' for site in sites}

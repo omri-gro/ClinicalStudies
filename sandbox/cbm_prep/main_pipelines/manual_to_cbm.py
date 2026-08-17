@@ -13,26 +13,27 @@ from clinstudtools.utils import read_to_df
 
 
 if __name__ == "__main__":
-    suffix = '_with_hairy_correction'
-    sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
+    suffix = '_just_BWH_SYN_TASMC'
+    # sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
+    sites = ['BWH', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
     test_arm = 'CBM'
     ref_arm = 'manual'
     cbm_version = 'v325'  # v317 / v319 / v325
 
-    bin_params = True
-    inter = True
+    bin_params = False
+    inter = False
 
-    exprt_long = True
-    exprt_mtrx = True
+    exprt_long = False
+    exprt_mtrx = False
     plot_reg = True
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
     max_unclass = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc_mnl = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
-    min_wbc_cbm = 200  # number or False
+    min_wbc_cbm = False  # number or False
     diff500 = False
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False  # suggest not to use this one
@@ -110,8 +111,12 @@ if __name__ == "__main__":
         'Dr. med. Weigand, Michael': 'Arbitrator',
         'Dr. med. Michael Weigand': 'Arbitrator',
         'Dr Guy Hannah': 'Arbitrator',
+        'Andrew Doyle': 'Arbitrator',
+        'Ben-Zion Katz': 'Arbitrator',
         'Dan BENISTY': 'Arbitrator',
         'Olga Pozdnyakova': 'Arbitrator',
+        'Christopher Hergott': 'Arbitrator',
+        'Robert P Hasserjian': 'Arbitrator',
 
         # Preserve system/automated roles
         'CBM': 'CBM',
@@ -251,7 +256,7 @@ if __name__ == "__main__":
 
 
     if exprt_long:
-        include_in_export = vars_to_test + grades_to_test
+        include_in_export = vals_to_print + grades_to_test + print_also
         df_long = methd_comp.df.query(f"Variable in @include_in_export and Investigator!='Mean Investigator'")[['SampleID', 'Site', 'Method', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
         write_df_to_file(df_long, rf'comp_tables/{save_name}_long_all_revs.csv')
         df_long = methd_comp.df.query(f"Variable in @include_in_export and Investigator=='Mean Investigator'")[['SampleID', 'Site', 'Method', 'Investigator', 'Variable', 'Value', 'Grade', 'Positive']]
