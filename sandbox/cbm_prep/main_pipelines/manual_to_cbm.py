@@ -13,9 +13,9 @@ from clinstudtools.utils import read_to_df
 
 
 if __name__ == "__main__":
-    suffix = '_just_BWH_SYN_TASMC'
-    # sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
-    sites = ['BWH', 'SYN', 'TASMC']
+    suffix = ''
+    sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
+    # sites = ['BWH', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
     test_arm = 'CBM'
@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     exprt_long = False
     exprt_mtrx = False
-    plot_reg = True
+    plot_reg = False
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False

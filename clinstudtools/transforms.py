@@ -122,7 +122,7 @@ def filter_by_reference(
     keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())
     mask = pd.MultiIndex.from_frame(df1_com).isin(keys_df2)
 
-    # Target variable filtering
+    # Determine final mask based on target_vars
     if target_vars is not None:
         target_vars = ensure_list(target_vars)
         if metadata:
@@ -133,20 +133,22 @@ def filter_by_reference(
 
         is_target_var = df1['Variable'].isin(target_vars)
         final_mask = ~(is_target_var & ~mask) if include_rows else ~(is_target_var & mask)
-        out_df = df1.loc[final_mask].copy()
     else:
         # Global filtering
-        mask = mask if include_rows else ~mask
-        out_df = df1.loc[mask].copy()
+        final_mask = mask if include_rows else ~mask
+
+    out_df = df1.loc[final_mask].copy()
 
     # Calculate and print the number of samples removed
     if verbose and common:
-        initial_samples = df1[common].drop_duplicates().shape[0]
-        remaining_samples = out_df[common].drop_duplicates().shape[0]
-        removed_count = initial_samples - remaining_samples
+        # ~final_mask represents exactly the rows that were dropped
+        dropped_rows = df1[~final_mask]
+        removed_count = dropped_rows[common].drop_duplicates().shape[0]
+
         if removed_count > 0:
             source_name = filtering_source if isinstance(filtering_source, str) else "reference dataframe"
-            print(f"Removed {removed_count} samples based on {source_name}.")
+            target_str = " for target variables" if target_vars else ""
+            print(f"Removed {removed_count} samples{target_str} based on {source_name}.")
 
     return out_df
 
