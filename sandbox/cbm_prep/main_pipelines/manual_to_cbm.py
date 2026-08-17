@@ -25,9 +25,9 @@ if __name__ == "__main__":
     bin_params = False
     inter = False
 
-    exprt_long = False
-    exprt_mtrx = False
-    plot_reg = False
+    exprt_long = True
+    exprt_mtrx = True
+    plot_reg = True
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
@@ -36,13 +36,15 @@ if __name__ == "__main__":
     min_wbc_cbm = False  # number or False
     diff500 = False
     crf_ssn = 'all'  # 'all' or 'post'
-    aftr_2nd_ssn = False  # suggest not to use this one
+    aftr_2nd_ssn = True  # suggest not to use this one
     cbm_thresholding = False  # if True than CBM<1% changes to 0 for hairy cells, LGL and atypical
-    after_last_ssn = True  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
+    after_last_ssn = False  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
     no_cpg = False
     by_inv = False
     no_arb_cands = False    # currently not in use - for checking arbitration request for additional slides
     rmv_tech_flgs = True
+    rmv_clin_flgs = False
+
 
     max_unclassstr = f'_maxuncls{max_unclass}' if max_unclass else ''
     min_wbcmnlstr = f'_minmnlwbc{min_wbc_mnl}' if min_wbc_mnl else ''
@@ -57,7 +59,8 @@ if __name__ == "__main__":
     no_cpg_str = '_no_CPG' if no_cpg else ''
     no_arb_cands_str = '_NoArbCands' if no_arb_cands else ''
     rmv_tech_flgs_str = '_NoTechFlgs' if rmv_tech_flgs else ''
-    save_name = f'mnl_{max_unclassstr}{min_wbcmnlstr}{min_wbccbmstr}{rmv_brdstr}{min_inv_str}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{rmv_tech_flgs_str}{suffix}'
+    rmv_clin_flgs_str = '_NoClinFlgs' if rmv_clin_flgs else ''
+    save_name = f'mnl_{max_unclassstr}{min_wbcmnlstr}{min_wbccbmstr}{rmv_brdstr}{min_inv_str}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{rmv_tech_flgs_str}{rmv_clin_flgs_str}{suffix}'
 
 
     # string for filtering raw CBM file (more can be added later)
@@ -215,17 +218,26 @@ if __name__ == "__main__":
         cbm_df.loc[(cbm_df['Variable'].isin(vars_to_thres)) & (cbm_df['Value'] < thres), 'Value'] = 0
 
     if rmv_tech_flgs:
-        max_unclass_cbm = 3
-        cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
+        # maxmimal_rbc_fovs = 80
+        # maxmimal_rbc_fovs = 150
+        # cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
+        # max_unclass_cbm = 3
+        # max_unclass_cbm = 5
+        # cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
         minimal_mono_fovs = 500
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
 
+
+    # cbm_df = filter_by_condition(cbm_df, f"SampleID != '05394'")
+
+
+    """
     # RnA analysis areas that are incorrect
     df = filter_by_reference(
         df, 'flt_lists/500_WBC_mnl_cases.csv', include_rows=False,
         target_vars=['RBC Agglutination', 'Rouleaux']
     )
-
+    """
 
     all_dfs = pd.concat([df, cbm_df])
 
@@ -248,6 +260,8 @@ if __name__ == "__main__":
     print_also = ['Unclassified WBC', "Total WBC"]
     vals_to_print = vars_to_test + print_also
     morph_vals_to_print = morph_vals_to_test + print_also
+
+    # vars_to_test = ['LGL', 'Atypical Lymphocyte', 'Aber&Hairy', 'Metamyelocyte', 'Myelocyte', 'Promyelocyte', 'Blast', 'Plasma Cell', 'Lymphocyte']
 
     if diff500:
         vars_to_test = ['Plasma Cell']
