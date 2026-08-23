@@ -15,10 +15,10 @@ warnings.filterwarnings('ignore')
 # ==============================================================================
 
 # Data Parameters
-STUDY_MODE = "Spherocytes"  # RBC_Shape, Spherocytes, RBC_SIZE or PLT_SIZE
+STUDY_MODE = "RBC_Shape"  # RBC_Shape, Spherocytes, RBC_SIZE or PLT_SIZE
 FILE_PATH = rf"results/{STUDY_MODE}_results.csv"
 REF_COL = "percent_in_roi_rev"
-TEST_COL = "percent_test_arm_ai"  # Options: 'percent_test_arm_ai', 'percent_in_scan_ai' or 'percent_in_roi_ai'
+TEST_COL = "percent_in_scan_ai"  # Options: 'percent_test_arm_ai', 'percent_in_scan_ai' or 'percent_in_roi_ai'
 
 # Analysis Modifiers
 AGGREGATE_BY_SAMPLE = True  # If True, calculates per-sample mean. If False, analyzes per-reviewer rows.

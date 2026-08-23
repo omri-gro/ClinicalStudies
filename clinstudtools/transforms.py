@@ -111,12 +111,12 @@ def filter_by_reference(
     df2_com = df2[common]
 
     # Handle SampleID type mismatches
-    if pd.api.types.is_numeric_dtype(df2_com['SampleID'].dtype) and not pd.api.types.is_numeric_dtype(
-            df1_com['SampleID'].dtype):
-        df2_com = df2_com[df2_com["SampleID"].notna()]
-        num0s = len(df1_com["SampleID"].astype(str).iloc[0])
-        ids_in_format = df2_com["SampleID"].astype(int).astype(str).str.zfill(num0s)
-        df2_com = df2_com.assign(SampleID=ids_in_format)
+    if 'SampleID' in df2_com.columns:
+        if pd.api.types.is_numeric_dtype(df2_com['SampleID'].dtype) and not pd.api.types.is_numeric_dtype(df1_com['SampleID'].dtype):
+            df2_com = df2_com[df2_com["SampleID"].notna()]
+            num0s = len(df1_com["SampleID"].astype(str).iloc[0])
+            ids_in_format = df2_com["SampleID"].astype(int).astype(str).str.zfill(num0s)
+            df2_com = df2_com.assign(SampleID=ids_in_format)
 
     # Build multi-index mask
     keys_df2 = pd.MultiIndex.from_frame(df2_com.drop_duplicates())

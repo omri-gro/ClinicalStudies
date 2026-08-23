@@ -291,7 +291,8 @@ variables:
    - smudge_cell_percentage
   groups:
    - density
-   - count
+   - WBC-like
+   - percent-like
    - WBC&PLT compare
    - WBC diff-related
   crit_points: [0, 1]

@@ -196,6 +196,8 @@ def calculate_fov_metrics(counts, jd):
     # We default to the 'wbc' region area for these elements. Prevent ZeroDivisionError.
     wbc_area_hpf = max(areas_hpf.get('wbc', 1), 1)
 
+    metrics['WBC Analysis FOVs'] = round(wbc_area_hpf, 2)
+
     for cell in PER_10_FOV_TYPES:
         std_name = JSON_TO_FINAL_MAP.get(cell, cell)
         count_val = counts.get(cell, 0)

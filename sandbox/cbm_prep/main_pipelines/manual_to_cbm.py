@@ -15,7 +15,6 @@ from clinstudtools.utils import read_to_df
 if __name__ == "__main__":
     suffix = ''
     sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
-    # sites = ['BWH', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
     test_arm = 'CBM'
@@ -27,8 +26,8 @@ if __name__ == "__main__":
 
     only_hard_params = True
 
-    exprt_long = False
-    exprt_mtrx = False
+    exprt_long = True
+    exprt_mtrx = True
     plot_reg = True
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
@@ -40,12 +39,13 @@ if __name__ == "__main__":
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False  # suggest not to use this one
     cbm_thresholding = False  # if True than CBM<1% changes to 0 for hairy cells, LGL and atypical
-    after_last_ssn = True  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
+    after_last_ssn = False  # for lym types, smudge, Pelger, Auer Rods & RBC distributions, use only after mid-Jan session samples
     no_cpg = False
     by_inv = False
     no_arb_cands = False    # currently not in use - for checking arbitration request for additional slides
     rmv_tech_flgs = True
-    max_unclass_cbm = 3  # number or False
+    max_unclass_cbm = False  # number or False
+    lym3sites = True  # only ['BWH', 'SYN', 'TASMC'] for the lymphocytes subtypes
 
 
     max_unclassstr = f'_maxuncls{max_unclass_cbm}' if max_unclass_cbm else ''
@@ -62,7 +62,8 @@ if __name__ == "__main__":
     no_arb_cands_str = '_NoArbCands' if no_arb_cands else ''
     rmv_tech_flgs_str = '_NoTechFlgs' if rmv_tech_flgs else ''
     unclass_str = f'_{max_unclass_cbm}unclass' if max_unclass_cbm else ''
-    save_name = f'mnl_{max_unclassstr}{min_wbcmnlstr}{min_wbccbmstr}{rmv_brdstr}{min_inv_str}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{rmv_tech_flgs_str}{unclass_str}{suffix}'
+    lym3sites_str = '_lym3sites' if lym3sites else ''
+    save_name = f'mnl_{max_unclassstr}{min_wbcmnlstr}{min_wbccbmstr}{rmv_brdstr}{min_inv_str}{diff500str}{scnd_ssn_str}{cbm_thres_str}{after_last_ssn_str}{no_cpg_str}{cbm_version_str}{no_arb_cands_str}{rmv_tech_flgs_str}{unclass_str}{lym3sites_str}{suffix}'
 
 
     # string for filtering raw CBM file (more can be added later)
@@ -172,6 +173,13 @@ if __name__ == "__main__":
                          'Aber&Atyp', 'Variant Lymphocyte', 'Aber&Hairy']
         )
 
+    if lym3sites:
+        lym_vars = ['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Hairy Cell',
+                    'Aber&Atyp', 'Variant Lymphocyte', 'Aber&Hairy']
+        lym_sites = ['BWH', 'SYN', 'TASMC']
+        sites_ref_df = pd.DataFrame({'Site': lym_sites})
+        df = filter_by_reference(df=df, filtering_source=sites_ref_df, include_rows=True, target_vars=lym_vars)
+
 
     df = df.query("Value!='--------'").copy()
     # Standardize names and tag the Arbitrator
@@ -207,7 +215,7 @@ if __name__ == "__main__":
     df = create_derived_variables_long(df, metadata)
 
 
-    cbm_file_name = f'all6_both_CBM_{cbm_version}.csv'
+    cbm_file_name = f'all6_both_CBM_{cbm_version}{suffix}.csv'
     cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison', pre_cond=raw_cbm_cond)
 
     cbm_df['Investigator'] = test_arm
@@ -231,6 +239,7 @@ if __name__ == "__main__":
 
 
     # cbm_df = filter_by_condition(cbm_df, f"SampleID != '05394'")
+    # cbm_df = filter_by_condition(cbm_df, f"SampleID != '05385'")
 
 
     """

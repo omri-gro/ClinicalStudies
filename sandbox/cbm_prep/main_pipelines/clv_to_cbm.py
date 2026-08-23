@@ -18,6 +18,7 @@ from clinstudtools.preprocessing import add_grade_column, add_pos_column
 
 
 if __name__ == "__main__":
+    suffix = '_AgranSpheroFilt'
     cbm_version = 'v325'  # v317 / v319 / v325
     color = "both"   # RGB / Amber / both
     inter = False
@@ -29,7 +30,7 @@ if __name__ == "__main__":
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
     stain_flt = False  # inclusions parameters not reported when stain residue > stain_max
-    rmv_tech_flgs = False  # does not seem to help with anything
+    rmv_tech_flgs = True  # does not seem to help with anything
 
     """
     current filtering investigation
@@ -43,7 +44,7 @@ if __name__ == "__main__":
     color_str = '_Amber' if color == "Amber" else ''
     rmv_tech_flgs_str = '_NoTechFlgs' if rmv_tech_flgs else ''
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}{stain_str}{color_str}{rmv_tech_flgs_str}'
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}{stain_str}{color_str}{rmv_tech_flgs_str}{suffix}'
 
     intr_by_pair = False   # broken and returns "The following values are missing from the dictionary and will become NaN: {'Rev2', 'Rev1', 'Arbitrator'}" - needs correction of pairs dict
 
@@ -161,7 +162,7 @@ if __name__ == "__main__":
     stain_res_max = 0.3
     raw_cbm_cond = f"`Stain Residue`>={stain_res_max}" if stain_flt else None
 
-    df_cbm = medium_pipe(f'all6_{color}_CBM_{cbm_version}.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
+    df_cbm = medium_pipe(f'all6_{color}_CBM_{cbm_version}{suffix}.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
                      id_vars=id_vars_cbm, check_wbc_diff=False, pre_cond=raw_cbm_cond)
     df_cbm = add_grade_column(df_cbm, metadata)
     df_cbm = add_pos_column(df_cbm, metadata)
@@ -171,8 +172,8 @@ if __name__ == "__main__":
     df_cbm["Original_Investigator"] = test_arm
 
     if rmv_tech_flgs:
-        max_unclass_cbm = 3
-        df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
+        # max_unclass_cbm = 3
+        # df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
         minimal_mono_fovs = 500
         df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
 
