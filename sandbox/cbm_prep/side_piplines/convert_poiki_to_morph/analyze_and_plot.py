@@ -102,8 +102,8 @@ def analyze_and_plot(df, morphology, x, y, scatter_filename, csv_filename):
 df = pd.read_csv(r"../../comp_tables/clv_cbm_all-ssn_mininv-2_no_scrtch-False_brdrmv-False_v325_NoTechFlgs_mean_inv.csv")
 
 # Generate outputs for Sickle Cells
-analyze_and_plot(df, "Sickle cells", 3.0, 0.5, r'results/sickle_scatter.png', r'results/sickle_modified_data.csv')
+analyze_and_plot(df, "Sickle cells", 0, 0, r'results/sickle_scatter.png', r'results/sickle_modified_data.csv')
 
 # Generate outputs for Tear Drop Cells
-analyze_and_plot(df, "Tear drop cells", 1.5, 0.2, r'results/teardrop_scatter.png', r'results/teardrop_modified_data.csv')
+analyze_and_plot(df, "Tear drop cells", 0, 0, r'results/teardrop_scatter.png', r'results/teardrop_modified_data.csv')
 

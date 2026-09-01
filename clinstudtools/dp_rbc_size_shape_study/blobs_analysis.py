@@ -102,21 +102,29 @@ def load_rois_from_json(json_path, bucket=None):
     return pd.DataFrame(roi_list)
 
 
-def load_blobs(directory_path, bucket=None):
-    """Loads all blob CSVs without upfront evaluation to save time/memory."""
+def load_blobs(directory_paths, bucket=None):
+    """Loads all blob CSVs from one or multiple directories without upfront evaluation to save time/memory."""
+    # Convert single string to list for backwards compatibility
+    if isinstance(directory_paths, str):
+        directory_paths = [directory_paths]
+
     df_list = []
 
-    if bucket:
-        # directory_path acts as a prefix in GCS
-        blobs = bucket.list_blobs(prefix=directory_path)
-        for blob in blobs:
-            if "_blobs_" in blob.name and blob.name.endswith(".csv"):
-                content = blob.download_as_bytes()
-                df_list.append(pd.read_csv(io.BytesIO(content), low_memory=False))
-    else:
-        all_files = glob.glob(os.path.join(directory_path, "*_blobs_*.csv"))
-        for file in all_files:
-            df_list.append(pd.read_csv(file, low_memory=False))
+    for d_path in directory_paths:
+        if not d_path:
+            continue
+
+        if bucket:
+            # directory_path acts as a prefix in GCS
+            blobs = bucket.list_blobs(prefix=d_path)
+            for blob in blobs:
+                if "_blobs_" in blob.name and blob.name.endswith(".csv"):
+                    content = blob.download_as_bytes()
+                    df_list.append(pd.read_csv(io.BytesIO(content), low_memory=False))
+        else:
+            all_files = glob.glob(os.path.join(d_path, "*_blobs_*.csv"))
+            for file in all_files:
+                df_list.append(pd.read_csv(file, low_memory=False))
 
     if not df_list:
         raise FileNotFoundError("No blobs CSV files found.")
@@ -651,15 +659,23 @@ def process_study(mapping_df, rois_df, blobs_df, morphologies, required_roi_name
 
 
 if __name__ == "__main__":
-    STUDY_MODE = "RBC_Shape"  # RBC_Shape, Spherocytes, RBC_SIZE or PLT_SIZE
+    STUDY_MODE = "Spherocytes"  # RBC_Shape, Spherocytes, RBC_SIZE or PLT_SIZE
     USE_GCS = True  # toggle this to False is blobs csv and scans json are in local directory
     GCS_BUCKET_NAME = "scopio_labeling_tool_datasets_eur"
 
     # If GCS, DATA_DIR is the prefix path in the bucket. If local, it's the folder path.
-    DATA_DIR = "RBC_Shape_Study/2026-07-29_14:01:04.470285+00:00/"
+    DATA_DIR = "RBC_Shape_Study/2026-08-31_10:50:48.795380+00:00"
     # DATA_DIR = "RBC_Shape_Study/2026-07-16_07:02:49.736033+00:00/"
     # DATA_DIR = "RBC_Size_Study/2026-08-02_11:04:55.012477+00:00/"
+
+    # ALT_DATA_DIR = "RBC_Shape_Study_New_Runs/2026-08-31_11:06:57.284436+00:00"  # If additional model run's results in different directory
+    ALT_DATA_DIR = False
+
     MAPPING_DIR = "./mapping"  # location of tasks mapping
+
+    dirs_to_load = [DATA_DIR]
+    if ALT_DATA_DIR:
+        dirs_to_load.append(ALT_DATA_DIR)
 
     MAPPING_FILE = os.path.join(MAPPING_DIR, f"{STUDY_MODE}_tasks_mapping.csv")
     JSON_FILE = os.path.join(DATA_DIR, "scans_0.json").replace("\\", "/")
@@ -686,7 +702,7 @@ if __name__ == "__main__":
     # load data
     mapping_df = load_mapping(MAPPING_FILE)  # mapping does not sit in the bucket, so don't include the bucket argument
     rois_df = load_rois_from_json(JSON_FILE, bucket=bucket)
-    blobs_df = load_blobs(DATA_DIR, bucket=bucket)
+    blobs_df = load_blobs(dirs_to_load, bucket=bucket)
 
     blobs_df = blobs_df[blobs_df['roi_id'].isin(rois_df['roi_id'])]  # Purge any blobs belonging to ROIs that were marked as deleted in the JSON
 

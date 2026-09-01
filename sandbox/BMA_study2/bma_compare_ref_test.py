@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     compare_methods = True
     raw_dss = False
-    inter = False
+    inter = True
     inter_to_include_arbitrated = False  # also means that reviews which were replaced by arbitration will not appear in comp_mtrx
 
     # comp_mk_rois = True

@@ -14,12 +14,13 @@ if __name__ == "__main__":
     cbm_version = 'v325'  # v317 / v319 / v325
 
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
     bin_params = False
 
     remove_cases_by_list = False
     diff500 = False   # only when manual
     only_good_sites = False
+    rmv_tech_flgs = True
 
     manual = False  # if False use OMR as reference arm
 
@@ -59,6 +60,23 @@ if __name__ == "__main__":
 
     cbm_file_name = f'all6_both_CBM_{cbm_version}.csv'
     cbm_df = medium_pipe(cbm_file_name, None, 'CBM', metadata, dir=r'raw/cbm_method_comparison')
+    cbm_df.loc[cbm_df['Variable'] == 'PLT', 'Value'] *= 0.2  # converting from PLTs/50FOVs to PLTs/10FOVs
+
+    if rmv_tech_flgs:
+        # maxmimal_rbc_fovs = 80
+        maxmimal_rbc_fovs = 500
+        cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
+        minimal_mono_fovs = 500
+        cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
+
+        maximal_agran_plt = 40
+        maximal_sphero = 3
+        agran_sphero_conds = [
+            f"Variable == 'Agranular Platelet' and Value > {maximal_agran_plt}",
+            f"Variable == 'Spherocytes' and Value > {maximal_sphero}"
+        ]
+        cbm_df = filter_samples_by_multiple_conditions(cbm_df, agran_sphero_conds)
+
     # gather omr as usual
     srcs = {(site, ref_arm): f'{site}_{ref_arm}.csv' for site in sites}
     methd_comp = MethodComparator.from_paths_dict(srcs, metadata, dir=r'raw/cbm_method_comparison', inv=manual)
@@ -76,7 +94,7 @@ if __name__ == "__main__":
     methd_comp = MethodComparator(df)
 
     if remove_cases_by_list:
-        rmv_file = 'flt_lists/slides_to_remove.csv'
+        rmv_file = 'flt_lists/fully_removed.csv'
         rmv_df = read_to_df(rmv_file, file_dir=os.getcwd())
         methd_comp = methd_comp.filter_by_df(rmv_df)
 

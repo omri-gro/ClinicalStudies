@@ -184,3 +184,34 @@ def filter_samples_by_condition(df: pd.DataFrame, condition: str, filtering_cols
 
     return filtered_df
 
+
+def filter_samples_by_multiple_conditions(df: pd.DataFrame, conditions: List[str], filtering_cols=None) -> pd.DataFrame:
+    """
+    Remove all rows for samples that simultaneously meet MULTIPLE conditions across different rows.
+    """
+    default_filt_cols = ['Site', 'SampleID']
+    if filtering_cols is None and set(default_filt_cols).issubset(df.columns):
+        filtering_cols = default_filt_cols
+
+    # Start with all unique samples in the dataset
+    intersecting_samples = df[filtering_cols].drop_duplicates()
+
+    # Iteratively intersect samples that meet each condition
+    for cond in conditions:
+        cases = filter_by_condition(df, cond)
+        cond_samples = cases[filtering_cols].drop_duplicates()
+        intersecting_samples = pd.merge(intersecting_samples, cond_samples, on=filtering_cols)
+
+    # Calculate removed count
+    removed_count = intersecting_samples.shape[0]
+
+    if removed_count > 0:
+        print(f"Removed {removed_count} samples based on combined conditions:")
+        for cond in conditions:
+            print(f"  - {cond}")
+        # Use filter_by_reference to drop the identified samples, suppressing its internal print
+        return filter_by_reference(df, intersecting_samples, filtering_cols=filtering_cols, verbose=False)
+    else:
+        print("No samples met the combination of conditions. None removed.")
+        return df.copy()
+

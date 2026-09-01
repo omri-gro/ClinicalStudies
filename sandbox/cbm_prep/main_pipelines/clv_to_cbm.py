@@ -13,12 +13,12 @@ sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
 from clinstudtools import careful_map, apply_arbitration_override
 from clinstudtools.core.metadata import MetadataBundle
 from clinstudtools.utils import read_to_df, write_df_to_file
-from clinstudtools.transforms import filter_by_reference, filter_samples_by_condition, filter_by_condition
+from clinstudtools.transforms import filter_by_reference, filter_samples_by_condition, filter_by_condition, filter_samples_by_multiple_conditions
 from clinstudtools.preprocessing import add_grade_column, add_pos_column
 
 
 if __name__ == "__main__":
-    suffix = '_AgranSpheroFilt'
+    suffix = ''
     cbm_version = 'v325'  # v317 / v319 / v325
     color = "both"   # RGB / Amber / both
     inter = False
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     crf_ssn = 'all'  # 'all', 'pre' or 'post'
     rmv_brd = False
     stain_flt = False  # inclusions parameters not reported when stain residue > stain_max
-    rmv_tech_flgs = True  # does not seem to help with anything
+    rmv_tech_flgs = True
 
     """
     current filtering investigation
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     plot_reg = True
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
-    rbc_agg_params = True  # parameters like Oval+Ellip, Acan+Echin
+    rbc_agg_params = False  # parameters like Oval+Ellip, Acan+Echin
     with_morph_spec = True   # still need to implement
 
     sites = ['BWH', 'LMU', 'TASMC']
@@ -115,11 +115,17 @@ if __name__ == "__main__":
 
     # from previous attempts to quantify PLT morphologies with ClV
     vars_to_test = metadata.variable_groups.get('RBC morphology', []) + metadata.variable_groups.get('RBC combinations', [])
+    # vars_to_test = metadata.variable_groups.get('RBC shape', [])
+    # vars_to_test = ['Hypochromia', 'Polychromasia', 'Sickle cells', 'Stomatocytes', 'Target cells', 'Tear drop cells', 'Parasites', 'Schistocytes',
+    #                 'AcanoEchino', 'RBC Shape', 'RBC Shape (no Poiki)', 'RBC Shape (no EllipOval)', 'RBC Shape (no EllipOvalPoiki)', 'RBC Shape (no EllipOvalPoikiBite)',
+    #                  'RBC Shape (no EllipOvalStomaBite)', 'RBC Shape (only column A)', 'RBC Shape (no EllipOvalPoikiStomaBite)']
+    vars_to_test = ['Hypochromia', 'Polychromasia', 'Sickle cells', 'Stomatocytes', 'Target cells', 'Tear drop cells', 'Parasites', 'Schistocytes',
+                    'RBC Shape (no Poiki)']
 
     if stain_flt:
         vars_to_test = metadata.variable_groups.get('RBC inclusions', [])
 
-    vars_to_print = vars_to_test + ['TotalRBC'] + ['TotalPLT']
+    vars_to_print = vars_to_test + ['TotalRBC']
     id_vars_clv = ["SampleID", "Site", "Method", "FileName", 'Investigator']
     id_vars_cbm = ["SampleID", "Site", "Method", "FileName"]
 
@@ -164,6 +170,9 @@ if __name__ == "__main__":
 
     df_cbm = medium_pipe(f'all6_{color}_CBM_{cbm_version}{suffix}.csv', None, 'CBM', metadata, dir=r'raw/cbm_method_comparison',
                      id_vars=id_vars_cbm, check_wbc_diff=False, pre_cond=raw_cbm_cond)
+    # df_cbm = medium_pipe(f'all6_{color}_CBM_{cbm_version}.csv', None, 'CBM', metadata,
+    #                      dir=r'raw/cbm_method_comparison',
+    #                      id_vars=id_vars_cbm, check_wbc_diff=False, pre_cond=raw_cbm_cond)
     df_cbm = add_grade_column(df_cbm, metadata)
     df_cbm = add_pos_column(df_cbm, metadata)
     df_cbm = df_cbm.dropna(subset=["Value", "Grade"], how='all')  # drop when neither value or grade in row
@@ -174,14 +183,24 @@ if __name__ == "__main__":
     if rmv_tech_flgs:
         # max_unclass_cbm = 3
         # df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
+        maxmimal_rbc_fovs = 500
+        df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
         minimal_mono_fovs = 500
         df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
+
+        maximal_agran_plt = 40
+        maximal_sphero = 3
+        agran_sphero_conds = [
+            f"Variable == 'Agranular Platelet' and Value > {maximal_agran_plt}",
+            f"Variable == 'Spherocytes' and Value > {maximal_sphero}"
+        ]
+        df_cbm = filter_samples_by_multiple_conditions(df_cbm, agran_sphero_conds)
 
 
     all_dfs = pd.concat([df_clv, df_cbm])
 
 
-    df = filter_by_reference(all_dfs, r'flt_lists/low_quality.csv')
+    df = filter_by_reference(all_dfs, r'flt_lists/fully_removed.csv')
 
     # df = filter_by_reference(df, r'flt_lists/wrong_analysis_area.csv')
 

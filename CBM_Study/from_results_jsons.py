@@ -21,7 +21,7 @@ SUBMISSION_COLUMNS = [
     'Segmented Neutrophil', 'Band Neutrophil', 'Metamyelocyte',
     'Myelocyte', 'Promyelocyte', 'Lymphocyte', 'LGL',
     'Reactive Lymphocyte', 'Abnormal Lymphocyte', 'Smudge',
-    'Plasma cell', 'Hypochromia', 'Sickle cells', 'Target cells',
+    'Plasma cell', 'Hypochromia', 'Sickle cells', 'Stomatocytes', 'Target cells',
     'Tear drop cells', 'Polychromasia', 'Parasites', 'Spherocytes',
     'Schistocytes', 'Macrocytes', 'Microcytes', 'Large Platelets',
     'Platelet Clumps', 'Platelet Satellitism', 'Platelets Estimate',
@@ -38,8 +38,9 @@ WBC_TYPES = {
 }
 
 # Togglable sets for calculation methods
-PER_100_WBC_TYPES = {'Normoblast', 'Dohle Bodies', 'Pelger Cell', 'Auer Rods'}
-PER_10_FOV_TYPES = {'Smudge Cell'}
+PER_100_WBC_TYPES = {'Smudge Cell', 'Normoblast', 'Dohle Bodies', 'Pelger Cell', 'Auer Rods'}
+# PER_10_FOV_TYPES = {'Smudge Cell'}
+PER_10_FOV_TYPES = {}
 
 # Renaming dictionary mapping raw JSON terms to final requested terms
 JSON_TO_FINAL_MAP = {
@@ -54,6 +55,7 @@ JSON_TO_FINAL_MAP = {
     'tear_drop': 'Tear drop cells',
     'polychromatic': 'Polychromasia',
     'micro_organisms': 'Parasites',
+    'stomatocytes': 'Stomatocytes',
     'spherocytes': 'Spherocytes',
     'schistocytes': 'Schistocytes'
 }
@@ -318,11 +320,11 @@ def process_site(site_name, site_path, all_results):
 # ==========================================
 
 if __name__ == '__main__':
-    run_name = "cbm_study_run"
+    run_name = "rnr_run"
 
     # False: The directory contains flat files named {scan_uuid}.json
     # True: The directory contains subdirectories named {scan_uuid}, each holding a 'results.json'
-    USE_SUBDIR_STRUCTURE = True
+    USE_SUBDIR_STRUCTURE = False
 
     # True: Hairy Cell > 2% -> Abnormal Lymphocyte | Hairy Cell <= 2% -> regular Lymphocyte
     # False: Hairy Cell is always counted as Abnormal Lymphocyte
@@ -334,10 +336,10 @@ if __name__ == '__main__':
     # SITES can contain either folder names (which will be appended to PARENT_DIR)
     # OR full absolute paths to specific directories.
     sites = ["sb1024", "sb1108", "sb1114", "sb1127", "sb1132", "sb1134", "sb3058", "sb3130", "sb3184", "sb3334"]
-    sites = [
-        r"S:\talm\cbm_clinical_trial\Final_Run\RGB\pbs-3.25\json_structured",
-        r"S:\talm\cbm_clinical_trial\Final_Run\Amber\pbs-3.25\json_structured"
-    ]
+    # sites = [
+    #     r"S:\talm\cbm_clinical_trial\Final_Run\RGB\pbs-3.25\json_structured",
+    #     r"S:\talm\cbm_clinical_trial\Final_Run\Amber\pbs-3.25\json_structured"
+    # ]
 
     all_results = []
     os.makedirs(output_dir, exist_ok=True)

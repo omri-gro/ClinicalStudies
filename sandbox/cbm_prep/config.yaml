@@ -362,10 +362,12 @@ variables:
   normal_range: [0, 1]
  PLT:
   aliases:
-   - Platelet Estimate
+   - PLT Auto
    - PLT(10^3/uL)
-   - Platelets manual - blood
+   - Platelet, automated count
    - platelet
+   - Platelet
+   - Platelet Count (10*9/L)
    - platelet_density_count
   groups:
    - PLT Estimate
@@ -377,6 +379,7 @@ variables:
  PLT Clumps:
   aliases:
    - PLT clumps
+   - PLT Clumping
    - Platelets Clumping
    - Platelets clumps
    - PLT morphology (present / not present) [PLT Clumping]
@@ -384,7 +387,7 @@ variables:
    - platelet_clumping_count
   groups:
    - PLT morphology
-   - density
+   - count
    - binary
    - PLT arrangement
   normal_range: [0, 5]
@@ -397,7 +400,7 @@ variables:
    - platelet_satellitism_count
   groups:
    - PLT morphology
-   - density
+   - count
    - binary
    - PLT arrangement
   normal_range: [0, 5]
@@ -982,36 +985,6 @@ variables:
    components:
     - Aberrant Lymphocyte
     - Hairy Cell
- EllipOval:
-  groups:
-   - percent
-   - grade
-   - RBC shape
-   - RBC combinations
-   - derived
-  derived_from:
-   components:
-    - Elliptocytes
-    - Ovalocytes
-  crit_points: [0, 5, 20]
-  normal_range: [0, 5]
-  thresholds: [5, 20]
-  grades: [0, 2, 3]
- AcanoEchino:
-  groups:
-   - percent
-   - grade
-   - RBC shape
-   - RBC combinations
-   - derived
-  derived_from:
-   components:
-    - Acanthocytes
-    - Burr Cells
-  crit_points: [0, 5, 20]
-  normal_range: [0, 5]
-  thresholds: [5, 20]
-  grades: [0, 2, 3]
  Large&Giant PLTs:
   groups:
    - PLT morphology

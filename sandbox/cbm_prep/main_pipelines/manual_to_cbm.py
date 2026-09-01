@@ -8,7 +8,7 @@ from pipelines import mean_manual_pipe, medium_pipe
 
 sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
 from clinstudtools import careful_map, apply_arbitration_override
-from clinstudtools.transforms import filter_by_reference, filter_by_condition, filter_samples_by_condition
+from clinstudtools.transforms import filter_by_reference, filter_by_condition, filter_samples_by_condition, filter_samples_by_multiple_conditions
 from clinstudtools.utils import read_to_df
 
 
@@ -21,10 +21,11 @@ if __name__ == "__main__":
     ref_arm = 'manual'
     cbm_version = 'v325'  # v317 / v319 / v325
 
-    bin_params = False
+    bin_params = True
     inter = False
+    by_site = True
 
-    only_hard_params = True
+    only_hard_params = False
 
     exprt_long = True
     exprt_mtrx = True
@@ -128,7 +129,6 @@ if __name__ == "__main__":
         'CBM': 'CBM',
         'Mean Investigator': 'Mean Investigator'}
 
-    by_site = True
     if no_cpg:
         by_site = False
         sites = ['BWH', 'HUP', 'LMU', 'SYN', 'TASMC']
@@ -202,7 +202,8 @@ if __name__ == "__main__":
     df = apply_arbitration_override(df, arb_df, arb_rules, metadata)
 
     # still need to deal with arbitration of binary and graded parameters
-    binary_vars = metadata.variable_groups["PLT morphology"] + metadata.variable_groups["RBC arrangement"] + metadata.variable_groups["WBC morphology"]
+    # binary_vars = metadata.variable_groups["PLT morphology"] + metadata.variable_groups["RBC arrangement"] + metadata.variable_groups["WBC morphology"]
+    binary_vars = ['PLT Clumps', 'Satellitisms']
     raw_grade_cond=lambda d: (
         d["Method"].isin([ref_arm])
         & d["Variable"].isin(binary_vars)
@@ -215,7 +216,8 @@ if __name__ == "__main__":
     df = create_derived_variables_long(df, metadata)
 
 
-    cbm_file_name = f'all6_both_CBM_{cbm_version}{suffix}.csv'
+    # cbm_file_name = f'all6_both_CBM_{cbm_version}{suffix}.csv'
+    cbm_file_name = f'all6_both_CBM_{cbm_version}.csv'
     cbm_df = medium_pipe(cbm_file_name, None, test_arm, metadata, dir=r'raw/cbm_method_comparison', pre_cond=raw_cbm_cond)
 
     cbm_df['Investigator'] = test_arm
@@ -229,10 +231,19 @@ if __name__ == "__main__":
 
     if rmv_tech_flgs:
         # maxmimal_rbc_fovs = 80
-        # maxmimal_rbc_fovs = 150
-        # cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
+        maxmimal_rbc_fovs = 500
+        cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
         minimal_mono_fovs = 500
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
+
+        maximal_agran_plt = 40
+        maximal_sphero = 3
+        agran_sphero_conds = [
+            f"Variable == 'Agranular Platelet' and Value > {maximal_agran_plt}",
+            f"Variable == 'Spherocytes' and Value > {maximal_sphero}"
+        ]
+        cbm_df = filter_samples_by_multiple_conditions(cbm_df, agran_sphero_conds)
+
 
     if max_unclass_cbm:
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
@@ -253,7 +264,7 @@ if __name__ == "__main__":
     all_dfs = pd.concat([df, cbm_df])
 
     # cases to always remove - horrible slides, horrible scans, etc.
-    rmv_df = read_to_df('flt_lists/low_quality.csv', file_dir=os.getcwd())
+    rmv_df = read_to_df('flt_lists/fully_removed.csv', file_dir=os.getcwd())
     df = filter_by_reference(all_dfs, rmv_df)
 
     # cases of borderline quality - dirty, investigators' comments on quality, etc.
@@ -264,10 +275,12 @@ if __name__ == "__main__":
     methd_comp = MethodComparator(df)
 
     vars_to_test = metadata.variable_groups['WBC&PLT compare'] + ['Aber&Hairy']
-    grades_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
-        'PLT morphology'] + metadata.variable_groups['RBC arrangement']
+    # grades_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups[
+    #     'PLT morphology'] + metadata.variable_groups['RBC arrangement']
+    grades_to_test = ['PLT Clumps', 'Satellitisms']
     grades_to_print = grades_to_test + ['ScanID']
-    morph_vals_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups['PLT morphology']
+    # morph_vals_to_test = metadata.variable_groups['WBC morphology'] + metadata.variable_groups['PLT morphology']
+    morph_vals_to_test = ['PLT Clumps', 'Satellitisms']
     print_also = ['Unclassified WBC', "Total WBC"]
     vals_to_print = vars_to_test + print_also
     morph_vals_to_print = morph_vals_to_test + print_also

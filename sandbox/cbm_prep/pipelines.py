@@ -13,7 +13,7 @@ def clv_pipe(path, site, metadata, method="ClV",
     clv_raw_df = raw_to_df(path, site, method, sheet_name, dir)
     df = stnd_names(clv_raw_df, metadata.alias_map)
     df = diff_from_total(df, metadata, diff_cells="RBC morphology", total_count="TotalRBC")
-    df = diff_from_total(df, metadata, diff_cells="PLT morphology", total_count="TotalPLT")
+    # df = diff_from_total(df, metadata, diff_cells="PLT morphology", total_count="TotalPLT")
     df = pivot_long(df, id_vars=id_vars)
     if mean_inv:
         df = add_mean_investigator(df, method, min_inv)

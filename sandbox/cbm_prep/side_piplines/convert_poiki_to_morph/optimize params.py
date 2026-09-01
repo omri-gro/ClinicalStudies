@@ -17,11 +17,11 @@ def get_deming(x_val, y_val):
 df = pd.read_csv(r"../../comp_tables/clv_cbm_all-ssn_mininv-2_no_scrtch-False_brdrmv-False_v325_NoTechFlgs_mean_inv.csv")
 
 # --- 2. Define Parameters ---
-morphologies = ["Sickle cells", "Tear drop cells"]
+morphologies = ["Sickle cells", "Tear drop cells", "AcanoEchino"]
 poikilo_col = 'Poikilocytes|CBM'
 
-x_range = np.arange(0.5, 5.5, 0.5)
-y_range = np.arange(0.0, 0.55, 0.05)
+x_range = np.arange(5.0, 20.5, 0.5)
+y_range = np.arange(0.0, 0.36, 0.02)
 
 all_results = []
 
