@@ -697,7 +697,7 @@ if __name__ == "__main__":
     elif STUDY_MODE == "Spherocytes":
         REQUESTED_MORPHOLOGIES = ["Spherocyte"]
     else:
-        REQUESTED_MORPHOLOGIES = ["Bite cell", "Helmet cell", "Spherocyte", "Schistocyte", "Blister cell", "Helmet&Schisto"]
+        REQUESTED_MORPHOLOGIES = ["Helmet&Schisto"]
 
     # load data
     mapping_df = load_mapping(MAPPING_FILE)  # mapping does not sit in the bucket, so don't include the bucket argument

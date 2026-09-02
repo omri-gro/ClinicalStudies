@@ -7,6 +7,10 @@ from sandbox import MetadataBundle, read_to_df
 from pipelines import medium_pipe
 from itertools import product
 
+sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies')
+from clinstudtools.transforms import filter_samples_by_condition, filter_samples_by_multiple_conditions
+
+
 
 if __name__ == "__main__":
     analysis_name = "cbm_method_comparison"
@@ -64,12 +68,12 @@ if __name__ == "__main__":
 
     if rmv_tech_flgs:
         # maxmimal_rbc_fovs = 80
-        maxmimal_rbc_fovs = 500
+        maxmimal_rbc_fovs = 1000
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
         minimal_mono_fovs = 500
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
 
-        maximal_agran_plt = 40
+        maximal_agran_plt = 60
         maximal_sphero = 3
         agran_sphero_conds = [
             f"Variable == 'Agranular Platelet' and Value > {maximal_agran_plt}",

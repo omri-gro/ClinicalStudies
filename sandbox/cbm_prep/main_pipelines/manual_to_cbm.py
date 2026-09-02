@@ -29,14 +29,14 @@ if __name__ == "__main__":
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
     max_unclass_cbm = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc_mnl = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
     min_wbc_cbm = False  # number or False
-    diff500 = False
+    diff500 = True
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False  # suggest not to use this one
     cbm_thresholding = False  # if True than CBM<1% changes to 0 for hairy cells, LGL and atypical
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     min_wbccbmstr = f'_mincbmwbc{min_wbc_cbm}' if min_wbc_cbm else ''
     rmv_brdstr = '_bdrrmv' if rmv_brd else ''
     min_inv_str = f'_mininv{min_inv}' if min_inv else ''
-    diff500str = '_diff500' if diff500 else ''
+    diff500str = '_Plasma500' if diff500 else ''
     scnd_ssn_str = '_aftr2ndssn' if aftr_2nd_ssn else ''
     cbm_thres_str = '_cbm_thres' if cbm_thresholding else ''
     after_last_ssn_str = '_aftrlstssn' if after_last_ssn else '_all_ssns'
@@ -156,7 +156,7 @@ if __name__ == "__main__":
         # Other variables (like Segmented Neutrophil) keep all samples.
         df = filter_by_reference(
             df, 'flt_lists/500_WBC_mnl_cases.csv', include_rows=True,
-            target_vars=['Aberrant Lymphocyte', 'Plasma Cell']
+            target_vars=['Plasma Cell']
         )
 
     if crf_ssn == "post":
@@ -167,11 +167,18 @@ if __name__ == "__main__":
 
     if after_last_ssn:
         df = filter_by_reference(
-            df, 'flt_lists/after_last_session.xlsx', include_rows=True,
+            df, 'flt_lists/after_last_session.xlsx', include_rows=False,
             target_vars=['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Smudge Cell',
                          'RBC Agglutination', 'Rouleaux', 'Pelger Cell', 'Auer Rods', 'Hairy Cell',
                          'Aber&Atyp', 'Variant Lymphocyte', 'Aber&Hairy']
         )
+
+
+    # smudge cells analysis only for samples where smudge cells counted correctly (while performing WBC diff, not out of N FOVs)
+    df = filter_by_reference(
+        df, 'flt_lists/smudge_analysis.csv', include_rows=True,
+        target_vars=['Smudge Cell']
+    )
 
     if lym3sites:
         lym_vars = ['Aberrant Lymphocyte', 'Atypical Lymphocyte', 'LGL', 'Lymphocyte', 'Hairy Cell',
@@ -231,12 +238,12 @@ if __name__ == "__main__":
 
     if rmv_tech_flgs:
         # maxmimal_rbc_fovs = 80
-        maxmimal_rbc_fovs = 500
+        maxmimal_rbc_fovs = 1000
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
         minimal_mono_fovs = 500
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
 
-        maximal_agran_plt = 40
+        maximal_agran_plt = 60
         maximal_sphero = 3
         agran_sphero_conds = [
             f"Variable == 'Agranular Platelet' and Value > {maximal_agran_plt}",
@@ -286,11 +293,10 @@ if __name__ == "__main__":
     morph_vals_to_print = morph_vals_to_test + print_also
 
     if only_hard_params:
-        vars_to_test = ['LGL', 'Atypical Lymphocyte', 'Aber&Hairy', 'Metamyelocyte', 'Myelocyte', 'Promyelocyte', 'Blast', 'Plasma Cell', 'Lymphocyte']
+        vars_to_test = ['LGL', 'Atypical Lymphocyte', 'Aber&Hairy', 'Metamyelocyte', 'Myelocyte', 'Promyelocyte', 'Blast', 'Plasma Cell', 'Smudge Cell']
 
-    if diff500:
-        vars_to_test = ['Plasma Cell']
-    elif cbm_thresholding:
+
+    if cbm_thresholding:
         vars_to_test = vars_to_thres
 
 

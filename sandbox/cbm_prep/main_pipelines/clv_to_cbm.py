@@ -50,10 +50,10 @@ if __name__ == "__main__":
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
-    rbc_agg_params = False  # parameters like Oval+Ellip, Acan+Echin
+    rbc_agg_params = True  # parameters like Oval+Ellip, Acan+Echin
     with_morph_spec = True   # still need to implement
 
     sites = ['BWH', 'LMU', 'TASMC']
@@ -183,12 +183,12 @@ if __name__ == "__main__":
     if rmv_tech_flgs:
         # max_unclass_cbm = 3
         # df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
-        maxmimal_rbc_fovs = 500
+        maxmimal_rbc_fovs = 1000
         df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
         minimal_mono_fovs = 500
         df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Monolayer area' and Value >= {minimal_mono_fovs}")
 
-        maximal_agran_plt = 40
+        maximal_agran_plt = 60
         maximal_sphero = 3
         agran_sphero_conds = [
             f"Variable == 'Agranular Platelet' and Value > {maximal_agran_plt}",
