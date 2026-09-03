@@ -28,8 +28,8 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 3]
-  normal_range: [0, 3]
+  crit_points: [0, 5]
+  normal_range: [0, 5]
  Metamyelocyte:
   aliases:
    - Metamyelocytes %
@@ -42,7 +42,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 2]
+  crit_points: [0, 2, 5]
   normal_range: [0, 2]
  Myelocyte:
   aliases:
@@ -57,7 +57,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 2]
+  crit_points: [0, 2, 5]
   normal_range: [0, 2]
  Promyelocyte:
   aliases:
@@ -71,7 +71,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 2]
+  crit_points: [0, 2, 5]
   normal_range: [0, 2]
  Blast:
   aliases:
@@ -132,7 +132,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 10, 15]
+  crit_points: [0, 5, 10]
   normal_range: [0, 5]
  Atypical Lymphocyte:
   aliases:
@@ -147,7 +147,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 20, 40]
+  crit_points: [0, 5, 20, 40]
   normal_range: [0, 5]
  Aberrant Lymphocyte:
   aliases:
@@ -160,8 +160,8 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 2]
-  normal_range: [0, 2]
+  crit_points: [0, 1, 2]
+  normal_range: [0, 1]
  Hairy Cell:
   aliases:
    - Hairy cells %
@@ -202,8 +202,8 @@ variables:
    - WBC&PLT compare
    - OMR compare
    - WBC diff-related
-  crit_points: [4, 8]
-  normal_range: [4, 8]
+  crit_points: [2, 10]
+  normal_range: [2, 10]
  Basophil:
   aliases:
    - Basophils %
@@ -985,7 +985,9 @@ variables:
    components:
     - Aberrant Lymphocyte
     - Hairy Cell
- Large&Giant PLTs:
+  crit_points: [0, 1]
+  normal_range: [0, 1]
+ Macroplatelets:
   groups:
    - PLT morphology
    - percent
@@ -993,12 +995,19 @@ variables:
    - derived
   derived_from:
    components:
+    - Large&Giant PLTs
     - Large Platelet
     - Giant Platelet
-  crit_points: [0, 11, 20]
+  crit_points: [0, 5, 11, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
+ Reactive Lymphocyte:
+  crit_points: [0, 5, 20, 40]
+  normal_range: [0, 5]
+ Abnormal Lymphocyte:
+  crit_points: [0, 1, 2]
+  normal_range: [0, 1]
  Helmet&Schisto:
   groups:
    - RBC combinations
@@ -1007,6 +1016,8 @@ variables:
    components:
     - Schistocytes
     - Helmet cells
+  crit_points: [0, 1, 2]
+  normal_range: [0, 1]
  RBC Shape:
   groups:
    - percent

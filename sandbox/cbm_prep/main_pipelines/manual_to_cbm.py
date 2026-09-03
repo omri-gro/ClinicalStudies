@@ -393,6 +393,9 @@ if __name__ == "__main__":
     methd_comp.batch_fit([ref_arm], [test_arm], vars_to_test)
     if by_site:
         methd_comp.batch_fit([ref_arm], [test_arm], vars_to_test, site_filters=sites)
+    methd_comp.calc_all_biases(metadata.crit_points)
     methd_comp.save_results(rf'results/mnl/{save_name}_reg.csv')
+    methd_comp.save_results(rf'results/mnl/{save_name}_bias.xlsx', result_type='bias')
+
     if plot_reg:
         methd_comp.plot_all_regressions(f'results/mnl/{save_name}_reg.pdf')

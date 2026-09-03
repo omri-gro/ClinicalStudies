@@ -201,9 +201,9 @@ def generate_reference_intervals(csv_path, parameters, output_excel, group_col='
 
 if __name__ == "__main__":
     params = ['Segmented Neutrophil', 'Band Neutrophil', 'Metamyelocyte', 'Myelocyte', 'Promyelocyte', 'Blast',
-              'Monocyte', 'Lymphocyte', 'Large Granular Lymphocyte', 'Atypical Lymphocyte', 'Aberrant Lymphocyte',
-              'Hairy Cell', 'Sezary Cell', 'Plasma Cell', 'Basophil', 'Eosinophil', 'Normoblast', 'Smudge Cell',
-              'Platelet', 'Plt Clump', 'Giant Platelet', 'Large Platelet',
-              'Hypochromatic', 'Macrocytes', 'Microcytes', 'Micro-organisms',
-              'Poikilocytes', 'Polychromatic', 'Schistocytes+Helmet', 'Sickle', 'Spherocytes', 'Stomatocytes', 'Target', 'Tear Drop']
+              'Monocyte', 'Lymphocyte', 'Large Granular Lymphocyte', 'Reactive Lymphocyte', 'Abnormal Lymphocyte',
+              'Plasma Cell', 'Basophil', 'Eosinophil', 'Normoblast', 'Smudge Cell',
+              'Platelet', 'PLT Clumps', 'Macroplatelets',
+              'Hypochromatic', 'Macrocytes', 'Microcytes', 'Micro-organisms', 'Poikilocytosis',
+              'Polychromatic', 'Schistocytes', 'Sickle', 'Spherocytes', 'Stomatocytes', 'Target', 'Tear Drop']
     generate_reference_intervals("raw/normals_CBM_raw.csv", params, "results/output.xlsx")

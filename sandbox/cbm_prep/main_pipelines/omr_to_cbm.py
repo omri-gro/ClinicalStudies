@@ -137,6 +137,9 @@ if __name__ == "__main__":
     methd_comp.batch_compare(levels_a=ref_arm, levels_b='CBM', variables=vars_to_test,
                              lambda_=lambda_, reg_method=reg_mthd)
     methd_comp.batch_compare(levels_a=ref_arm, levels_b='CBM', variables=vars_to_test, split_by='Site')
+    methd_comp.calc_all_biases(metadata.crit_points)
     methd_comp.save_results(rf'{rslts_dir}/{save_name}_reg.csv')
+    methd_comp.save_results(rf'{rslts_dir}/{save_name}_bias.xlsx', result_type='bias')
+
     if plot_reg:
         methd_comp.plot_all_regressions(f'{rslts_dir}/{save_name}_reg.pdf')
