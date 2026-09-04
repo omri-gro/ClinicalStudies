@@ -84,6 +84,29 @@ SIZE_CRITERIA = {
     }
 }
 
+SIZE_CRITERIA = {
+    'Macrocytes': {
+        'target_class': 'rbc',
+        'threshold': 9.5,
+        'operator': 'greater',
+        'exclude_morphologies': {'sickle', 'bite', 'spherocytes', 'ovalocytes',
+                                 'blister', 'spur', 'poikilocytes', 'schistocytes', 'elliptocytes', 'helmet'}
+    },
+    'Microcytes': {
+        'target_class': 'rbc',
+        'threshold': 6.0,
+        'operator': 'less',
+        'exclude_morphologies': {'sickle', 'bite', 'spherocytes', 'ovalocytes', 'stomatocytes',
+                                 'blister', 'spur', 'poikilocytes', 'schistocytes', 'elliptocytes', 'helmet'}
+    },
+    'Large Platelets': {
+        'target_class': 'platelet',
+        'threshold': 6.0,
+        'operator': 'greater',
+        'exclude_morphologies': {}
+    }
+}
+
 
 # ==========================================
 # PARSER LOGIC
@@ -367,8 +390,8 @@ if __name__ == '__main__':
             df_submission[col] = df_full[col] if col in df_full.columns else ""
 
         # Save to disk
-        full_output_path = os.path.join(output_dir, f"{run_name}_full_results.csv")
-        cbm_output_path = os.path.join(output_dir, f"{run_name}_cbm_results.csv")
+        full_output_path = os.path.join(output_dir, f"{run_name}_full_results_changed_thresh.csv")
+        cbm_output_path = os.path.join(output_dir, f"{run_name}_cbm_results_thresh.csv")
 
         df_full.to_csv(full_output_path, index=False)
         df_submission.to_csv(cbm_output_path, index=False)

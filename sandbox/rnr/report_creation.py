@@ -242,7 +242,7 @@ def build_variance_table(doc, data, study_type):
     else:
         h1[6].text = 'Between-Day'
         h1[6].merge(h1[7])
-        h1[8].text = 'Between-Site'
+        h1[8].text = 'Between-Machine'
         h1[8].merge(h1[9])
         h1[10].text = 'Reproducibility (Total)'
         h1[10].merge(h1[11])
@@ -450,5 +450,5 @@ def generate_docx(rep_data, repro_data):
             add_native_caption(doc, f"{param} Reproducibility Profile", "Figure")
             doc.add_picture(img_path, width=Inches(6.0))
 
-    doc.save(os.path.join(OUTPUT_DIR, "RnR_Consolidated_Report.docx"))
+    doc.save(os.path.join(OUTPUT_DIR, "RnR_Consolidated_Report_CBM.docx"))
 

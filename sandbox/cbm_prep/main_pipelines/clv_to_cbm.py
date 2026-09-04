@@ -48,8 +48,8 @@ if __name__ == "__main__":
 
     intr_by_pair = False   # broken and returns "The following values are missing from the dictionary and will become NaN: {'Rev2', 'Rev1', 'Arbitrator'}" - needs correction of pairs dict
 
-    exprt_long = True
-    exprt_mtrx = True
+    exprt_long = False
+    exprt_mtrx = False
     plot_reg = False
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
@@ -183,6 +183,8 @@ if __name__ == "__main__":
     if rmv_tech_flgs:
         # max_unclass_cbm = 3
         # df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Unclassified WBC' and Value <= {max_unclass_cbm}")
+        minimal_wbc = 200
+        df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'Total WBC' and Value >= {minimal_wbc}")
         maxmimal_rbc_fovs = 1000
         df_cbm = filter_samples_by_condition(df_cbm, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
         minimal_mono_fovs = 500
@@ -299,11 +301,11 @@ if __name__ == "__main__":
         methd_comp.batch_fit(ref_arm, test_arm, vars_to_test, site_filters=by_list)
         methd_comp.calc_all_biases(metadata.crit_points)
 
-        methd_comp.save_results(rf'results/clv/{save_name}_reg.csv')
-        methd_comp.save_results(rf'results/clv/{save_name}_bias.xlsx', result_type='bias')
+        methd_comp.save_results(rf'results/clv/{save_name}_reg_min200WBC.csv')
+        methd_comp.save_results(rf'results/clv/{save_name}_bias_min200WBC.xlsx', result_type='bias')
 
         if plot_reg:
-            methd_comp.plot_all_regressions(f'results/clv/{save_name}_reg.pdf')
+            methd_comp.plot_all_regressions(f'results/clv/{save_name}_reg_min200WBC.pdf')
 
 
 

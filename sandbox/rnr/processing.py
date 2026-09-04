@@ -15,27 +15,68 @@ warnings.simplefilter('ignore', ConvergenceWarning)
 
 # Pass/Fail limit dictionaries
 # Format: { 'Official Name': (Switch_Threshold, SD_Limit, CV_Limit, Evaluation_Mode) }
+# AC_CONFIG = {
+#     # Tier 1: Ultra-Rare
+#     'Basophil': (2.0, 0.5, 30.0, 'HYBRID'),
+#     'Mast Cell': (2.0, 0.5, 30.0, 'HYBRID'),
+#     # Tier 2: Minor / Diagnostic
+#     'Blast': (5.0, 2.0, 30.0, 'HYBRID'),
+#     'Promyelocyte': (5.0, 2.0, 30.0, 'HYBRID'),
+#     'Plasma Cell': (5.0, 2.0, 30.0, 'HYBRID'),
+#     'Erythroblast': (5.0, 2.0, 30.0, 'HYBRID'),
+#     'Basophilic Normoblast': (5.0, 2.0, 30.0, 'HYBRID'),
+#     'Monocyte': (5.0, 2.0, 30.0, 'HYBRID'),
+#     'Eosinophil': (5.0, 2.0, 30.0, 'HYBRID'),
+#     # Tier 3: Intermediate
+#     'Myelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
+#     'Metamyelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
+#     'Band Neutrophil': (10.0, 3.0, 25.0, 'HYBRID'),
+#     'Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
+#     'Polychromatophilic Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
+#     # Tier 4: Major Populations
+#     'Lymphocyte': (20.0, 5.0, 25.0, 'HYBRID'),
+#     'Segmented Neutrophil': (20.0, 5.0, 25.0, 'HYBRID'),
+#     # Safety fallback (If a name doesn't match perfectly)
+#     'default': (5.0, 2.0, 30.0, 'HYBRID')
+# }
+
+
 AC_CONFIG = {
     # Tier 1: Ultra-Rare
-    'Basophil': (2.0, 0.5, 30.0, 'HYBRID'),
-    'Mast Cell': (2.0, 0.5, 30.0, 'HYBRID'),
+    'Parasites': (0.5, 0.1, 20.0, 'HYBRID'),
+    'Schistocytes': (0.5, 0.1, 20.0, 'HYBRID'),
     # Tier 2: Minor / Diagnostic
-    'Blast': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Promyelocyte': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Plasma Cell': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Erythroblast': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Basophilic Normoblast': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Monocyte': (5.0, 2.0, 30.0, 'HYBRID'),
-    'Eosinophil': (5.0, 2.0, 30.0, 'HYBRID'),
+    'Abnormal Lymphocyte': (2.0, 0.5, 20.0, 'HYBRID'),
+    'Plasma cell': (2.0, 0.5, 20.0, 'HYBRID'),
+    'Sickle cells': (2.0, 0.5, 20.0, 'HYBRID'),
+    'Blast': (2.0, 0.5, 20.0, 'HYBRID'),
+    'Basophil': (2.0, 0.5, 20.0, 'HYBRID'),
+    'Myelocyte': (2.0, 0.5, 20.0, 'HYBRID'),
+    'Promyelocyte': (2.0, 0.5, 20.0, 'HYBRID'),
+    'Spherocytes': (2.0, 0.5, 20.0, 'HYBRID'),
     # Tier 3: Intermediate
-    'Myelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Metamyelocyte': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Band Neutrophil': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
-    'Polychromatophilic Normoblast': (10.0, 3.0, 25.0, 'HYBRID'),
+    'Eosinophil': (5.0, 1.0, 20.0, 'HYBRID'),
+    'nRBC': (5.0, 1.0, 20.0, 'HYBRID'),
+    'Band Neutrophil': (5.0, 1.0, 20.0, 'HYBRID'),
+    'Metamyelocyte': (5.0, 1.0, 20.0, 'HYBRID'),
+    'Target cells': (5.0, 1.0, 20.0, 'HYBRID'),
+    'Tear drop cells': (5.0, 1.0, 20.0, 'HYBRID'),
+    'Polychromasia': (5.0, 1.0, 20.0, 'HYBRID'),
+    'Monocyte': (5.0, 1.0, 20.0, 'HYBRID'),
+    'LGL': (5.0, 1.0, 20.0, 'HYBRID'),
+    'Reactive Lymphocyte': (5.0, 1.0, 20.0, 'HYBRID'),
     # Tier 4: Major Populations
-    'Lymphocyte': (20.0, 5.0, 25.0, 'HYBRID'),
-    'Segmented Neutrophil': (20.0, 5.0, 25.0, 'HYBRID'),
+    'Lymphocyte': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Stomatocytes': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Segmented Neutrophil': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Poikilocytosis': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Hypochromia': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Smudge': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Macrocytes': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Microcytes': (10.0, 2.5, 25.0, 'HYBRID'),
+    'Large Platelets (Macroplatelets)': (10.0, 2.5, 25.0, 'HYBRID'),
+    # Tier 5: PLT
+    'Platelets Estimate': (300.0, 50.0, 20.0, 'HYBRID'),
     # Safety fallback (If a name doesn't match perfectly)
     'default': (5.0, 2.0, 30.0, 'HYBRID')
 }

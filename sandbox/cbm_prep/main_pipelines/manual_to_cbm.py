@@ -21,21 +21,21 @@ if __name__ == "__main__":
     ref_arm = 'manual'
     cbm_version = 'v325'  # v317 / v319 / v325
 
-    bin_params = True
-    inter = False
+    bin_params = False
+    inter = True
     by_site = True
 
     only_hard_params = False
 
-    exprt_long = True
-    exprt_mtrx = True
+    exprt_long = False
+    exprt_mtrx = False
     plot_reg = False
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
     max_unclass_cbm = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc_mnl = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
-    min_wbc_cbm = False  # number or False
+    min_wbc_cbm = 200  # number or False
     diff500 = True
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False  # suggest not to use this one

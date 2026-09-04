@@ -28,7 +28,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 5]
+  crit_points: [0, 10, 20]
   normal_range: [0, 5]
  Metamyelocyte:
   aliases:
@@ -42,7 +42,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 2, 5]
+  crit_points: [0, 10]
   normal_range: [0, 2]
  Myelocyte:
   aliases:
@@ -57,7 +57,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 2, 5]
+  crit_points: [0, 10]
   normal_range: [0, 2]
  Promyelocyte:
   aliases:
@@ -86,7 +86,7 @@ variables:
    - WBC&PLT compare
    - OMR compare
    - WBC diff-related
-  crit_points: [0, 2, 5]
+  crit_points: [0, 1, 2, 5, 10, 20]
   normal_range: [0, 2]
  Plasma Cell:
   aliases:
@@ -101,7 +101,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 1, 2]
+  crit_points: [0, 1, 5]
   normal_range: [0, 1]
  Lymphocyte:
   aliases:
@@ -132,7 +132,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 5, 10]
+  crit_points: [0, 10]
   normal_range: [0, 5]
  Atypical Lymphocyte:
   aliases:
@@ -147,7 +147,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 5, 20, 40]
+  crit_points: [0, 10, 20, 40]
   normal_range: [0, 5]
  Aberrant Lymphocyte:
   aliases:
@@ -160,7 +160,7 @@ variables:
    - percent
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 1, 2]
+  crit_points: [0, 1, 2, 5]
   normal_range: [0, 1]
  Hairy Cell:
   aliases:
@@ -202,7 +202,7 @@ variables:
    - WBC&PLT compare
    - OMR compare
    - WBC diff-related
-  crit_points: [2, 10]
+  crit_points: [5, 10]
   normal_range: [2, 10]
  Basophil:
   aliases:
@@ -219,7 +219,7 @@ variables:
    - WBC&PLT compare
    - OMR compare
    - WBC diff-related
-  crit_points: [0, 2, 5]
+  crit_points: [0, 2]
   normal_range: [0, 2]
  Eosinophil:
   aliases:
@@ -236,7 +236,7 @@ variables:
    - WBC&PLT compare
    - OMR compare
    - WBC diff-related
-  crit_points: [0, 6]
+  crit_points: [0, 5, 15]
   normal_range: [0, 6]
  Unclassified WBC:
   aliases:
@@ -280,7 +280,7 @@ variables:
    - WBC&PLT compare
    - OMR compare
    - WBC diff-related
-  crit_points: [0, 1]
+  crit_points: [0, 5]
   normal_range: [0, 1]
  Smudge Cell:
   aliases:
@@ -295,7 +295,7 @@ variables:
    - percent-like
    - WBC&PLT compare
    - WBC diff-related
-  crit_points: [0, 1]
+  crit_points: [0, 10, 30]
   normal_range: [0, 10]
  Megakaryocyte:
   aliases:
@@ -998,7 +998,7 @@ variables:
     - Large&Giant PLTs
     - Large Platelet
     - Giant Platelet
-  crit_points: [0, 5, 11, 20]
+  crit_points: [0, 5, 10, 20]
   normal_range: [0, 11]
   thresholds: [11, 20]
   grades: [0, 2, 3]
@@ -1006,7 +1006,7 @@ variables:
   crit_points: [0, 5, 20, 40]
   normal_range: [0, 5]
  Abnormal Lymphocyte:
-  crit_points: [0, 1, 2]
+  crit_points: [0, 1, 5]
   normal_range: [0, 1]
  Helmet&Schisto:
   groups:

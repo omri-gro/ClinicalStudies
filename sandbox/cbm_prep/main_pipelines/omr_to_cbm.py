@@ -18,13 +18,13 @@ if __name__ == "__main__":
     cbm_version = 'v325'  # v317 / v319 / v325
 
     exprt_mtrx = True
-    plot_reg = False
+    plot_reg = True
     bin_params = False
 
     remove_cases_by_list = False
     diff500 = False   # only when manual
     only_good_sites = False
-    rmv_tech_flgs = True
+    rmv_tech_flgs = False
 
     manual = False  # if False use OMR as reference arm
 
