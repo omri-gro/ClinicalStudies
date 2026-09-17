@@ -27,6 +27,7 @@ def plot_precision_profiles(data, study_type="Reproducibility"):
     plot_paths = {}
 
     for param in df['Parameter'].unique():
+        units = 'PLTs / 10 FOVs' if param == 'Platelets Estimate' else '%'
         param_data = df[df['Parameter'] == param]
         if param not in AC_CONFIG: continue
 
@@ -58,7 +59,7 @@ def plot_precision_profiles(data, study_type="Reproducibility"):
                  label=f'SD Limit (≤ {sd_limit})')
         ax1.fill_between([0, sd_line_end], 0, sd_limit, color='#2ca02c', alpha=0.07, zorder=1)
         ax1.set_title(f'{param} - {study_type} SD', fontsize=11, fontweight='bold')
-        ax1.set_xlabel('Mean Concentration (%)')
+        ax1.set_xlabel(f'Mean Concentration ({units})')
         ax1.set_ylabel('Total SD')
         ax1.set_xlim(0, max_x)
         ax1.set_ylim(0, max(sd_limit * 1.6, (below_th['Total_SD'].max() if not below_th.empty else 0) * 1.3, 0.5))
@@ -75,7 +76,7 @@ def plot_precision_profiles(data, study_type="Reproducibility"):
             ax2.axvline(x=threshold, color='#7f7f7f', linestyle=':', linewidth=1.5, zorder=2)
 
         ax2.set_title(f'{param} - {study_type} %CV', fontsize=11, fontweight='bold')
-        ax2.set_xlabel('Mean Concentration (%)')
+        ax2.set_xlabel(f'Mean Concentration ({units})')
         ax2.set_ylabel('Total %CV')
         ax2.set_xlim(0, max_x)
         ax2.set_ylim(0, max(cv_limit * 2.0, (above_th['Total_CV'].max() if not above_th.empty else 0) * 1.3, 60.0))
@@ -208,6 +209,118 @@ def apply_strict_widths(table, widths_in_inches):
                 tcW.type = 'dxa'
 
                 col_idx += span
+
+
+def build_summary_table(doc, rep_data, repro_data):
+    df_rep = pd.DataFrame(rep_data)
+    if not df_rep.empty:
+        df_rep = df_rep[df_rep['constant'] == False]
+    df_repro = pd.DataFrame(repro_data)
+    if not df_repro.empty:
+        df_repro = df_repro[df_repro['constant'] == False]
+
+    summary_rows = []
+
+    # Iterate through configured parameters to maintain a consistent order
+    for param in AC_CONFIG.keys():
+        p_rep = df_rep[df_rep['Parameter'] == param] if not df_rep.empty else pd.DataFrame()
+        p_repro = df_repro[df_repro['Parameter'] == param] if not df_repro.empty else pd.DataFrame()
+
+        if p_rep.empty and p_repro.empty:
+            continue
+
+        threshold, _, _, _ = AC_CONFIG[param]
+
+        # Segment data into tiers
+        rep_low = p_rep[p_rep['Mean'] < threshold]
+        repro_low = p_repro[p_repro['Mean'] < threshold]
+        rep_high = p_rep[p_rep['Mean'] >= threshold]
+        repro_high = p_repro[p_repro['Mean'] >= threshold]
+
+        def get_max(df, col):
+            return f"{df[col].max():.2f}" if not df.empty else "-"
+
+        def get_status(df_r, df_rp):
+            statuses = []
+            if not df_r.empty: statuses.extend(df_r['Status'].tolist())
+            if not df_rp.empty: statuses.extend(df_rp['Status'].tolist())
+            if not statuses: return "-"
+            return "Fail" if "Fail" in statuses else "Pass"
+
+        # Build Low Tier Row
+        row_low = [
+            param,
+            f"< {threshold:.1f}%",
+            get_max(rep_low, 'Total_SD'),
+            'N/A*' if not rep_low.empty else "-",
+            get_max(repro_low, 'Total_SD'),
+            'N/A*' if not repro_low.empty else "-",
+            get_status(rep_low, repro_low)
+        ]
+
+        # Build High Tier Row
+        row_high = [
+            param,
+            f"≥ {threshold:.1f}%",
+            get_max(rep_high, 'Total_SD'),
+            get_max(rep_high, 'Total_CV') + "%" if not rep_high.empty else "-",
+            get_max(repro_high, 'Total_SD'),
+            get_max(repro_high, 'Total_CV') + "%" if not repro_high.empty else "-",
+            get_status(rep_high, repro_high)
+        ]
+
+        summary_rows.append((row_low, row_high))
+
+    if not summary_rows: return
+
+    table = doc.add_table(rows=2, cols=7)
+    table.style = 'Table Grid'
+    table.autofit = False
+
+    set_repeat_table_header(table.rows[0])
+    set_repeat_table_header(table.rows[1])
+
+    h1 = table.rows[0].cells
+    h2 = table.rows[1].cells
+
+    # Construct merged headers
+    h1[0].text = 'Parameter';
+    h1[0].merge(h2[0])
+    h1[1].text = 'Concentration Level';
+    h1[1].merge(h2[1])
+    h1[2].text = 'Within-Laboratory\nPrecision\n(Repeatability)';
+    h1[2].merge(h1[3])
+    h1[4].text = 'Total Precision\n(Reproducibility)';
+    h1[4].merge(h1[5])
+    h1[6].text = 'Status\n(Acceptance Criteria Met?)';
+    h1[6].merge(h2[6])
+
+    h2[2].text = 'Max SD';
+    h2[3].text = 'Max %CV'
+    h2[4].text = 'Max SD';
+    h2[5].text = 'Max %CV'
+
+    # Populate Data
+    for row_low, row_high in summary_rows:
+        r1 = table.add_row().cells
+        r2 = table.add_row().cells
+
+        for i in range(7):
+            r1[i].text = row_low[i]
+            r2[i].text = row_high[i]
+
+        # Merge the parameter name vertically
+        r1[0].merge(r2[0])
+
+        # Right-align the numerical columns
+        for i in range(2, 6):
+            if r1[i].paragraphs: r1[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            if r2[i].paragraphs: r2[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    # Apply strict widths (Total ~8.6 inches)
+    widths = [1.6, 1.4, 1.1, 1.1, 1.1, 1.1, 1.2]
+    apply_strict_widths(table, widths)
+
 
 def build_variance_table(doc, data, study_type):
     if not data: return
@@ -405,8 +518,20 @@ def generate_docx(rep_data, repro_data):
     # --- CONSOLIDATED TABLES (LANDSCAPE) ---
     set_landscape(doc)
 
+    section_num = 1
+
+    # --- SUMMARY TABLE ---
+    if rep_data or repro_data:
+        doc.add_heading(f'{section_num}. Summary of Precision Performance', level=2)
+        add_native_caption(doc, "Summary of Precision Performance (Repeatability and Reproducibility)", "Table")
+        build_summary_table(doc, rep_data, repro_data)
+        doc.add_paragraph(
+            "* N/A: For concentrations below the threshold, acceptance criteria are based on standard deviation (SD) only; thus, %CV is not evaluated.")
+        doc.add_page_break()
+        section_num += 1
+
     if rep_data:
-        doc.add_heading('1. Repeatability Data Tables', level=2)
+        doc.add_heading(f'{section_num}. Repeatability Data Tables', level=2)
         add_native_caption(doc, "Repeatability Variance Components", "Table")
         build_variance_table(doc, rep_data, 'Repeatability')
         doc.add_paragraph("")  # Spacing
@@ -415,9 +540,10 @@ def generate_docx(rep_data, repro_data):
         add_native_caption(doc, "Repeatability Degrees of Freedom & 95% Confidence Intervals", "Table")
         build_ci_table(doc, rep_data, 'Repeatability')
         doc.add_page_break()
+        section_num += 1
 
     if repro_data:
-        doc.add_heading('2. Reproducibility Data Tables', level=2)
+        doc.add_heading(f'{section_num}. Reproducibility Data Tables', level=2)
         add_native_caption(doc, "Reproducibility Variance Components", "Table")
         build_variance_table(doc, repro_data, 'Reproducibility')
         doc.add_paragraph("")  # Spacing
@@ -426,25 +552,26 @@ def generate_docx(rep_data, repro_data):
         add_native_caption(doc, "Reproducibility Degrees of Freedom & 95% Confidence Intervals", "Table")
         build_ci_table(doc, repro_data, 'Reproducibility')
         doc.add_page_break()
+        section_num += 1
 
     # --- PRECISION PROFILES (PORTRAIT) ---
     section = doc.add_section()
     section.orientation = WD_ORIENT.PORTRAIT
     section.page_width, section.page_height = section.page_height, section.page_width
 
-    doc.add_heading('3. Precision Profiles', level=2)
+    doc.add_heading(f'{section_num}. Precision Profiles', level=2)
     doc.add_paragraph(
         "The plots below display Total Precision (SD and %CV) mapped against the Mean for each sample. Acceptance Criteria limits are denoted by the dashed lines.")
 
     if rep_data:
-        doc.add_heading('3.1 Repeatability Profiles', level=3)
+        doc.add_heading(f'{section_num}.1 Repeatability Profiles', level=3)
         rep_plots = plot_precision_profiles(rep_data, "Repeatability")
         for param, img_path in rep_plots.items():
             add_native_caption(doc, f"{param} Repeatability Profile", "Figure")
             doc.add_picture(img_path, width=Inches(6.0))
 
     if repro_data:
-        doc.add_heading('3.2 Reproducibility Profiles', level=3)
+        doc.add_heading(f'{section_num}.2 Reproducibility Profiles', level=3)
         repro_plots = plot_precision_profiles(repro_data, "Reproducibility")
         for param, img_path in repro_plots.items():
             add_native_caption(doc, f"{param} Reproducibility Profile", "Figure")

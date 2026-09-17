@@ -31,7 +31,15 @@ def main():
                         'Creation_Date', 'Total WBC', 'Total RBC',
                         'Platelet Clumps', 'Platelet Satellitism',
                         'Unclassified WBC', 'Poikilocytes', 'Blister',
-                        'Bite', 'Burr', 'Spur', 'Ovalo', 'Ellipto', 'Scan UUID']
+                        'Bite', 'Burr', 'Spur', 'Ovalo', 'Ellipto', 'Scan UUID',
+                        'Schistocytes', 'Abnormal Lymphocyte', 'Plasma cell', 'Sickle cells',
+                        'Blast', 'Basophil', 'Myelocyte', 'Promyelocyte', 'Spherocytes',
+                        'Eosinophil', 'nRBC', 'Band Neutrophil', 'Metamyelocyte', 'Target cells',
+                        'Tear drop cells', 'Polychromasia', 'Monocyte', 'LGL', 'Reactive Lymphocyte',
+                        'Lymphocyte', 'Stomatocytes', 'Segmented Neutrophil', 'Poikilocytosis', 'Hypochromia',
+                        'Smudge', 'Macrocytes', 'Microcytes', 'Large Platelets (Macroplatelets)',
+                        'Platelets Estimate'
+                        ]
         rep_params = [c for c in df_rep.columns if c not in exclude_cols]
 
         print("Calculating Repeatability variance components...")
@@ -55,7 +63,15 @@ def main():
                         'Creation_Date', 'Total WBC', 'Total RBC',
                         'Platelet Clumps', 'Platelet Satellitism',
                         'Unclassified WBC', 'Poikilocytes', 'Blister',
-                        'Bite', 'Burr', 'Spur', 'Ovalo', 'Ellipto', 'Scan UUID']
+                        'Bite', 'Burr', 'Spur', 'Ovalo', 'Ellipto', 'Scan UUID',
+                        'Schistocytes', 'Abnormal Lymphocyte', 'Plasma cell', 'Sickle cells',
+                        'Blast', 'Basophil', 'Myelocyte', 'Promyelocyte', 'Spherocytes',
+                        'Eosinophil', 'nRBC', 'Band Neutrophil', 'Metamyelocyte', 'Target cells',
+                        'Tear drop cells', 'Polychromasia', 'Monocyte', 'LGL', 'Reactive Lymphocyte',
+                        'Lymphocyte', 'Stomatocytes', 'Segmented Neutrophil', 'Poikilocytosis', 'Hypochromia',
+                        'Smudge', 'Macrocytes', 'Microcytes', 'Large Platelets (Macroplatelets)',
+                        'Platelets Estimate'
+                        ]
         repro_params = [c for c in df_repro.columns if c not in exclude_cols]
 
         print("Calculating Reproducibility variance components...")

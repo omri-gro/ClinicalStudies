@@ -53,7 +53,9 @@ def create_word_appendix(
     output_filename="results/Appendix_Regressions.docx",
     ordered_variables=None,
     fig_title_mapping=None,
-    doc_title_mapping=None
+    doc_title_mapping=None,
+    ref_arm_name='Reference Arm [%]',
+    test_arm_name='Test Arm [%]',
 ):
     """
     Generates an MS Word appendix with cell type regressions and MK regression.
@@ -101,8 +103,8 @@ def create_word_appendix(
         plot_style = base_style.copy()
         plot_style.update({
             'title': fig_display_title,
-            'xlabel': 'Manual Review [%]',
-            'ylabel': 'Digital Review [%]'
+            'xlabel': ref_arm_name,
+            'ylabel': test_arm_name
         })
 
         # Generate the figure
@@ -126,6 +128,7 @@ def create_word_appendix(
         doc.add_picture(mem_stream, width=Inches(5))
         fig_num += 1
 
+    """
     # 2. Plot MK Regression from standalone CSV
     print("Generating Megakaryocyte regression figure...")
     if os.path.exists(mk_csv_path):
@@ -170,6 +173,7 @@ def create_word_appendix(
         doc.add_picture(mem_stream, width=Inches(5))
     else:
         print(f"Warning: Could not find MK raw data at {mk_csv_path}. Skipping MK plot.")
+    """
 
     # Save the document
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)

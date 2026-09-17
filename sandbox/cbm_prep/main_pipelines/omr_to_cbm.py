@@ -18,13 +18,13 @@ if __name__ == "__main__":
     cbm_version = 'v325'  # v317 / v319 / v325
 
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
     bin_params = False
 
-    remove_cases_by_list = False
+    remove_cases_by_list = True
     diff500 = False   # only when manual
     only_good_sites = False
-    rmv_tech_flgs = False
+    rmv_tech_flgs = True
 
     manual = False  # if False use OMR as reference arm
 
@@ -68,6 +68,8 @@ if __name__ == "__main__":
 
     if rmv_tech_flgs:
         # maxmimal_rbc_fovs = 80
+        minimal_wbc = 200
+        cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'Total WBC' and Value >= {minimal_wbc}")
         maxmimal_rbc_fovs = 1000
         cbm_df = filter_samples_by_condition(cbm_df, f"Variable == 'RBC Analysis Area' and Value <= {maxmimal_rbc_fovs}")
         minimal_mono_fovs = 500
@@ -143,3 +145,49 @@ if __name__ == "__main__":
 
     if plot_reg:
         methd_comp.plot_all_regressions(f'{rslts_dir}/{save_name}_reg.pdf')
+
+
+    # ---------------------------------------------------------
+    # Generate MS Word Appendix
+    # ---------------------------------------------------------
+    sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\BMA_study2')
+    from appendix_generator import create_word_appendix
+
+    appendix_order = [
+        'Blast',
+        'Monocyte',
+        'Basophil',
+        'Eosinophil',
+        'NRBC',
+        'PLT',
+    ]
+
+    fig_titles = {
+        'Blast': 'Blast',
+        'Monocyte': 'Monocyte',
+        'Basophil': 'Basophil',
+        'Eosinophil': 'Eosinophil',
+        'NRBC': 'nRBC',
+        'PLT': 'PLT Estimate',
+    }
+
+    doc_title = {
+        'Blast': 'Blast',
+        'Monocyte': 'Monocyte',
+        'Basophil': 'Basophil',
+        'Eosinophil': 'Eosinophil',
+        'NRBC': 'nRBC',
+        'PLT': 'PLT Estimate',
+    }
+
+    create_word_appendix(
+        methd_comp=methd_comp,
+        mk_csv_path=None,
+        output_filename=f'results/omr/{save_name}_Appendix.docx',
+        ordered_variables=appendix_order,
+        fig_title_mapping=fig_titles,
+        doc_title_mapping=doc_title,
+        ref_arm_name='Original Medical Records [%]',
+        test_arm_name='CBM Analyzer [%]',
+    )
+

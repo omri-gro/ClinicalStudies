@@ -19,6 +19,7 @@ from clinstudtools.preprocessing import add_grade_column, add_pos_column
 
 if __name__ == "__main__":
     suffix = ''
+    save_suffix = ''
     cbm_version = 'v325'  # v317 / v319 / v325
     color = "both"   # RGB / Amber / both
     inter = False
@@ -44,12 +45,12 @@ if __name__ == "__main__":
     color_str = '_Amber' if color == "Amber" else ''
     rmv_tech_flgs_str = '_NoTechFlgs' if rmv_tech_flgs else ''
 
-    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}{stain_str}{color_str}{rmv_tech_flgs_str}{suffix}'
+    save_name = f'clv_cbm_{crf_ssn}-ssn_mininv-{min_inv}_no_scrtch-{no_scrtch}_brdrmv-{rmv_brd}_{cbm_version}{stain_str}{color_str}{rmv_tech_flgs_str}{suffix}{save_suffix}'
 
     intr_by_pair = False   # broken and returns "The following values are missing from the dictionary and will become NaN: {'Rev2', 'Rev1', 'Arbitrator'}" - needs correction of pairs dict
 
-    exprt_long = False
-    exprt_mtrx = False
+    exprt_long = True
+    exprt_mtrx = True
     plot_reg = False
     inv_names_in_export = False  # if False investigators will appear as Rev1 and Rev2 only
     by_rev_comp = False  # perform comparison for each reviewer separately
@@ -202,6 +203,7 @@ if __name__ == "__main__":
     all_dfs = pd.concat([df_clv, df_cbm])
 
 
+    # df = all_dfs
     df = filter_by_reference(all_dfs, r'flt_lists/fully_removed.csv')
 
     # df = filter_by_reference(df, r'flt_lists/wrong_analysis_area.csv')
@@ -306,6 +308,59 @@ if __name__ == "__main__":
 
         if plot_reg:
             methd_comp.plot_all_regressions(f'results/clv/{save_name}_reg_min200WBC.pdf')
+
+
+    # ---------------------------------------------------------
+    # Generate MS Word Appendix
+    # ---------------------------------------------------------
+    sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\BMA_study2')
+    from appendix_generator import create_word_appendix
+
+    appendix_order = [
+        'Hypochromia',
+        'Sickle cells',
+        'Stomatocytes',
+        'Target cells',
+        'Tear drop cells',
+        'Polychromasia',
+        'Parasites',
+        'RBC Shape (no Poiki)',
+    ]
+
+    fig_titles = {
+        'Hypochromia': 'Hypochromia',
+        'Sickle cells': 'Sickle cells',
+        'Stomatocytes': 'Stomatocytes',
+        'Target cells': 'Target cells',
+        'Tear drop cells': 'Tear drop cells',
+        'Polychromasia': 'Polychromasia',
+        'Parasites': 'Parasites',
+        'RBC Shape (no Poiki)': 'Poikilocytosis',
+    }
+
+    doc_title = {
+        'Hypochromia': 'Hypochromia',
+        'Sickle cells': 'Sickle cells',
+        'Stomatocytes': 'Stomatocytes',
+        'Target cells': 'Target cells',
+        'Tear drop cells': 'Tear drop cells',
+        'Polychromasia': 'Polychromasia',
+        'Parasites': 'Parasites',
+        'RBC Shape (no Poiki)': 'Poikilocytosis',
+    }
+
+    create_word_appendix(
+        methd_comp=methd_comp,
+        mk_csv_path=None,
+        output_filename=f'results/clv/{save_name}_Appendix.docx',
+        ordered_variables=appendix_order,
+        fig_title_mapping=fig_titles,
+        doc_title_mapping=doc_title,
+        ref_arm_name='CellaVision Reviews [%]',
+        test_arm_name='CBM Analyzer [%]',
+    )
+
+
 
 
 

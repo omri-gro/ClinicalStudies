@@ -5,7 +5,8 @@ from sklearn.utils import resample
 # ==========================================
 # 1. TOGGLES & CONFIGURATION
 # ==========================================
-FILE_PATH = 'Flag Sensitivity Analysis - comp - final.csv'
+# FILE_PATH = 'Flag Sensitivity Analysis - comp - final.csv'
+FILE_PATH = 'Flag Sensitivity Analysis - comp - promyelo1%.csv'
 
 # Toggle Variables
 CALC_95_CI = False  # If True, calculates 95% CI using bootstrapping
@@ -30,13 +31,15 @@ CBM_CLINICAL_FLAGS = [
 # (Plasma, Unclass, and Any Clinical Flag are omitted here as they have no matching ref arm in BL-BS)
 FLAG_MAPPINGS = {
     'Extreme Leukopenia': ['Extreme Leukopenia (WBC Auto=<2)'],
+    'Plasma': ['Plasma cells > 1\nmanual'],
+    'Promyelocyte.1': ['Promyelocyte > 1\nmanual', 'Promyelocyte > 1\nmanual or OMR'],
     'Blast.1': ['Blast >1\nmanual', 'Blast >1 manual or OMR'],
-    'Promyelocyte.1': ['Promyelocyte > 5\nmanual', 'Promyelocyte > 5\nmanual or OMR'],
     'Abnormal Lym': ['Abnorm lym >1\nmanual'],
-    'Parasites': ['Parasites > 1\nClV'],
+    'Parasites': ['Parasites > 0\nClV'],
     'Schistocytes': ['Schisto > 1\nDP'],
     'Schisto > 0.5 CBM': ['Schisto > 0.5 DP'],
     'Unclass': ['Any other clinical flag', 'Any other WBC clinical flag', 'Any WBC clinical flag manual'],
+    'Any Clinical Flag': ['Any clinical flag manual in any referene method']
 }
 
 
@@ -88,7 +91,7 @@ def print_rates(df, condition_col, cohort_name):
     count = df[condition_col].sum()
     pct = (count / total) * 100 if total > 0 else 0
     print(f"\n--- {condition_col} Rates ({cohort_name}) ---")
-    print(f"Overall: {count}/{total} ({pct:.1f}%)")
+    print(f"Overall: {count}/{total} ({pct:.2f}%)")
 
     # Per Site
     sites = sorted(df[SITE_COL].dropna().unique())
@@ -97,15 +100,15 @@ def print_rates(df, condition_col, cohort_name):
         s_total = len(sub)
         s_count = sub[condition_col].sum()
         s_pct = (s_count / s_total) * 100 if s_total > 0 else 0
-        print(f"  {site}: {s_count}/{s_total} ({s_pct:.1f}%)")
+        print(f"  {site}: {s_count}/{s_total} ({s_pct:.2f}%)")
 
 
 def format_metric(val, ci_tuple=None):
     if pd.isna(val): return "-"
-    base = f"{val * 100:.1f}%"
+    base = f"{val * 100:.2f}%"
     if ci_tuple and CALC_95_CI:
         lower, upper = ci_tuple
-        base += f" [{lower * 100:.1f}-{upper * 100:.1f}]"
+        base += f" [{lower * 100:.2f}-{upper * 100:.2f}]"
     return base
 
 
@@ -141,7 +144,7 @@ for flag in CBM_CLINICAL_FLAGS:
     if flag in df_clin_eligible.columns:
         count = df_clin_eligible[flag].sum()
         pct = (count / len(df_clin_eligible)) * 100 if len(df_clin_eligible) > 0 else 0
-        print(f"  {flag}: {count} ({pct:.1f}%)")
+        print(f"  {flag}: {count} ({pct:.2f}%)")
 
 # ==========================================
 # 5. SENSITIVITY, SPECIFICITY, PPV
@@ -202,3 +205,137 @@ for cbm_col, ref_cols in FLAG_MAPPINGS.items():
         sites = sorted(eval_df[SITE_COL].dropna().unique())
         for site in sites:
             evaluate_cohort(eval_df[eval_df[SITE_COL] == site], f"  {site}")
+
+# ==========================================
+# 6. UNCLASS FLAG DEEP DIVE
+# ==========================================
+print("\n" + "=" * 50)
+print("UNCLASS FLAG DEEP DIVE")
+print("=" * 50)
+
+if 'Unclass' in df_clin_eligible.columns:
+    # Isolate only the scans that received the 'Unclass' flag
+    df_unclass = df_clin_eligible[df_clin_eligible['Unclass'] == True].copy()
+    total_unclass = len(df_unclass)
+
+    print(f"Total scans with 'Unclass' flag (excluding Tech & Leukopenia): {total_unclass}\n")
+
+    if total_unclass > 0:
+        # 1. Received another CBM clinical flag
+        other_clin_cols = [c for c in CBM_CLINICAL_FLAGS if
+                           c in df_unclass.columns and c not in ['Unclass', 'Any Clinical Flag']]
+        df_unclass['Another_Clin_Flag'] = df_unclass[other_clin_cols].any(axis=1)
+
+        count_another = df_unclass['Another_Clin_Flag'].sum()
+        pct_another = (count_another / total_unclass) * 100
+        print(f"> Received ANOTHER clinical flag (CBM):")
+        print(f"  {count_another} / {total_unclass} ({pct_another:.2f}%)")
+
+        # 2. Received another WBC-related clinical flag (CBM)
+        wbc_clin_cols = ['Blast.1', 'Promyelocyte.1', 'Abnormal Lym']
+        wbc_clin_cols = [c for c in wbc_clin_cols if c in df_unclass.columns]
+        df_unclass['Another_WBC_Flag'] = df_unclass[wbc_clin_cols].any(axis=1)
+
+        count_wbc = df_unclass['Another_WBC_Flag'].sum()
+        pct_wbc = (count_wbc / total_unclass) * 100
+        print(f"\n> Received a WBC-RELATED clinical flag (CBM):")
+        print(f"  {count_wbc} / {total_unclass} ({pct_wbc:.2f}%)")
+
+        # 3. Would have received a flag by Reference Arms
+        ref_flag_cols = []
+        for ref_list in FLAG_MAPPINGS.values():
+            ref_flag_cols.extend(ref_list)
+        ref_flag_cols = [c for c in set(ref_flag_cols) if c in df_unclass.columns]
+
+        df_unclass['Any_Ref_Flag'] = df_unclass[ref_flag_cols].any(axis=1)
+        count_ref = df_unclass['Any_Ref_Flag'].sum()
+        pct_ref = (count_ref / total_unclass) * 100
+        print(f"\n> Triggered ANY clinical/leukopenia flag in the Reference Arms:")
+        print(f"  {count_ref} / {total_unclass} ({pct_ref:.2f}%)")
+
+        # Breakdown of Reference Arm Triggers
+        print("\n  Breakdown of Reference Flags for these 'Unclass' samples:")
+        for ref_col in ref_flag_cols:
+            count = df_unclass[ref_col].sum()
+            if count > 0:
+                clean_ref_name = ref_col.replace('\n', ' ')
+                pct = (count / total_unclass) * 100
+                print(f"    - {clean_ref_name}: {count} ({pct:.2f}%)")
+
+        # ------------------------------------------
+        # Custom Composite Reference Flags
+        # ------------------------------------------
+
+        # A) Any manual/OMR clinical flag
+        def check_manual_omr_flag(row):
+            # Blast
+            if parse_bool(row.get('Blasts>1|manual')) == True or parse_bool(row.get('Blasts>1|OMR')) == True: return True
+            # Promyelocyte
+            if parse_bool(row.get('Promyelo>1|manual')) == True or parse_bool(row.get('Promyelo>1|OMR')) == True: return True
+            # Abnorm Lym
+            if parse_bool(row.get('Abnorm lym >1|manual')) == True or parse_bool(row.get('Abnorm lym >1|OMR')) == True: return True
+            # Plasma
+            if parse_bool(row.get('Plasma>1|OMR')) == True or parse_bool(row.get('Plasma>1|OMR')) == True: return True
+
+            return False
+
+
+        df_unclass['Any_manual_OMR_clinical_flag'] = df_unclass.apply(check_manual_omr_flag, axis=1)
+        count_man_omr = df_unclass['Any_manual_OMR_clinical_flag'].sum()
+        pct_man_omr = (count_man_omr / total_unclass) * 100 if total_unclass else 0
+
+        print(f"\n> Triggered ANY manual/OMR clinical flag:")
+        print(f"  {count_man_omr} / {total_unclass} ({pct_man_omr:.2f}%)")
+
+
+        # B) Any reference arm clinical flag
+        def check_any_ref_flag(row):
+            # If it already triggered the manual/OMR composite, it triggers this one
+            if row['Any_manual_OMR_clinical_flag'] == True: return True
+            # Schisto DP
+            if parse_bool(row.get('Schisto > 0.5\nDP')) == True: return True
+            # Parasites ClV
+            if parse_bool(row.get('Parasites > 0.85\nClV')) == True: return True
+            # Parasites OMR
+            if parse_bool(row.get('Parasites|OMR')) == True: return True
+            return False
+
+    df_unclass['Any_ref_arm_clinical_flag'] = df_unclass.apply(check_any_ref_flag, axis=1)
+    count_any_ref = df_unclass['Any_ref_arm_clinical_flag'].sum()
+    pct_any_ref = (count_any_ref / total_unclass) * 100 if total_unclass else 0
+
+    print(f"\n> Triggered ANY reference arm clinical flag:")
+    print(f"  {count_any_ref} / {total_unclass} ({pct_any_ref:.2f}%)")
+
+    # C) Any reference arm clinical flag or leukopenia
+    def check_any_ref_or_leuk_flag(row):
+        # If it already triggered the manual/OMR composite, it triggers this one
+        if row['Any_ref_arm_clinical_flag'] == True: return True
+        # Leukopenia Auto CBC
+        if parse_bool(row.get('Extreme Leukopenia (WBC Auto=<2)')) == True: return True
+        return False
+
+    df_unclass['Any_ref_arm_flag'] = df_unclass.apply(check_any_ref_or_leuk_flag, axis=1)
+    count_any_ref_flag = df_unclass['Any_ref_arm_flag'].sum()
+    pct_any_ref_flag = (count_any_ref_flag / total_unclass) * 100 if total_unclass else 0
+
+    print(f"\n> Triggered ANY reference arm clinical flag or leukopenia:")
+    print(f"  {count_any_ref_flag} / {total_unclass} ({pct_any_ref_flag:.2f}%)")
+
+
+    # D) Any reference arm clinical flag or leukopenia or other cbm clinical flag
+    def check_any_flag(row):
+        # If it already triggered the manual/OMR composite, it triggers this one
+        if row['Any_ref_arm_flag'] == True: return True
+        # Leukopenia Auto CBC
+        if parse_bool(row.get('Any other clinical flag')) == True: return True
+        return False
+
+
+    df_unclass['Any_flag'] = df_unclass.apply(check_any_flag, axis=1)
+    count_any_flag = df_unclass['Any_flag'].sum()
+    pct_any_flag = (count_any_flag / total_unclass) * 100 if total_unclass else 0
+
+    print(f"\n> Triggered ANY reference arm clinical flag or leukopenia or other CBM clinical flag:")
+    print(f"  {count_any_flag} / {total_unclass} ({pct_any_flag:.2f}%)")
+

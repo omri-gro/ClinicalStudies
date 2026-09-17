@@ -13,7 +13,7 @@ from clinstudtools.utils import read_to_df
 
 
 if __name__ == "__main__":
-    suffix = ''
+    suffix = '_no_removed'
     sites = ['BWH', 'CPG', 'HUP', 'LMU', 'SYN', 'TASMC']
     analysis_name = "cbm_method_comparison"
     meta_path = r'config.yaml'
@@ -29,14 +29,14 @@ if __name__ == "__main__":
 
     exprt_long = True
     exprt_mtrx = True
-    plot_reg = True
+    plot_reg = False
 
     min_inv = 2  # False or number  currently does not seem to make much of a difference
     rmv_brd = False
     max_unclass_cbm = False  # number (0-100) or False   currently doesn't matter, makes not difference to any parameter
     min_wbc_mnl = False  # number or False   don't use use value>=100, currently TASMC raw data is percentages
-    min_wbc_cbm = 200  # number or False
-    diff500 = True
+    min_wbc_cbm = False  # number or False
+    diff500 = False
     crf_ssn = 'all'  # 'all' or 'post'
     aftr_2nd_ssn = False  # suggest not to use this one
     cbm_thresholding = False  # if True than CBM<1% changes to 0 for hairy cells, LGL and atypical
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     no_cpg = False
     by_inv = False
     no_arb_cands = False    # currently not in use - for checking arbitration request for additional slides
-    rmv_tech_flgs = True
+    rmv_tech_flgs = False
     max_unclass_cbm = False  # number or False
     lym3sites = False  # only ['BWH', 'SYN', 'TASMC'] for the lymphocytes subtypes
 
@@ -401,62 +401,4 @@ if __name__ == "__main__":
         methd_comp.plot_all_regressions(f'results/mnl/{save_name}_reg.pdf')
 
 
-    # ---------------------------------------------------------
-    # Generate MS Word Appendix
-    # ---------------------------------------------------------
-    sys.path.append(r'C:\Users\omrig\DataAnalysisProjects\ClinicalStudies\sandbox\BMA_study2')
-    from appendix_generator import create_word_appendix
-
-    appendix_order = [
-        'Segmented Neutrophil',
-        'Band Neutrophil',
-        'Metamyelocyte',
-        'Myelocyte',
-        'Promyelocyte',
-        'Lymphocyte',
-        'LGL',
-        'Atypical Lymphocyte',
-        'Aber&Hairy',
-        'Smudge Cell',
-        'Plasma Cell',
-    ]
-
-    fig_titles = {
-        'Segmented Neutrophil': 'Segmented Neutrophil',
-        'Band Neutrophil': 'Band Neutrophil',
-        'Metamyelocyte': 'Metamyelocyte',
-        'Myelocyte': 'Myelocyte',
-        'Promyelocyte': 'Promyelocyte',
-        'Lymphocyte': 'Lymphocyte',
-        'LGL': 'LGL',
-        'Atypical Lymphocyte': 'Reactive Lymphocyte',
-        'Aber&Hairy': 'Abnormal Lymphocyte',
-        'Smudge Cell': 'Smudge Cell',
-        'Plasma Cell': 'Plasma Cell',
-    }
-
-    doc_title = {
-        'Segmented Neutrophil': 'Segmented Neutrophil',
-        'Band Neutrophil': 'Band Neutrophil',
-        'Metamyelocyte': 'Metamyelocyte',
-        'Myelocyte': 'Myelocyte',
-        'Promyelocyte': 'Promyelocyte',
-        'Lymphocyte': 'Lymphocyte',
-        'LGL': 'LGL',
-        'Atypical Lymphocyte': 'Reactive Lymphocyte',
-        'Aber&Hairy': 'Abnormal Lymphocyte',
-        'Smudge Cell': 'Smudge Cell',
-        'Plasma Cell': 'Plasma Cell',
-    }
-
-    create_word_appendix(
-        methd_comp=methd_comp,
-        mk_csv_path=None,
-        output_filename=f'results/mnl/{save_name}_Appendix.docx',
-        ordered_variables=appendix_order,
-        fig_title_mapping=fig_titles,
-        doc_title_mapping=doc_title,
-        ref_arm_name='Manual Microscope Reviews [%]',
-        test_arm_name='CBM Analyzer [%]',
-    )
 
